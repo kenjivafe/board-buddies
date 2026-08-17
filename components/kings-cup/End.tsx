@@ -1,13 +1,14 @@
 "use client";
 
-import type { Action } from "@/lib/reducer";
-import type { GameState } from "@/lib/types";
+import Link from "next/link";
+import type { Action } from "@/lib/kings-cup/reducer";
+import type { KcView } from "@/lib/kings-cup/view";
 
 export default function End({
   state,
   dispatch,
 }: {
-  state: GameState;
+  state: KcView;
   dispatch: React.Dispatch<Action>;
 }) {
   const ranked = [...state.players].sort(
@@ -64,12 +65,15 @@ export default function End({
       </section>
 
       <footer className="setup-footer">
-        <button className="btn btn-gold draw-btn" onClick={() => dispatch({ type: "RESTART" })}>
+        <button className="btn btn-primary draw-btn" onClick={() => dispatch({ type: "RESTART" })}>
           Same table, new deck
         </button>
         <button className="btn btn-ghost" onClick={() => dispatch({ type: "NEW_GAME" })}>
           Change players
         </button>
+        <Link className="hint" href="/" style={{ marginTop: 4 }}>
+          Pick another game
+        </Link>
       </footer>
     </>
   );

@@ -1,0 +1,208 @@
+import {
+  initialState as coupInitial,
+  reducer as coupReducer,
+  type Action as CoupAction,
+} from "@/lib/coup/reducer";
+import { responders } from "@/lib/coup/rules";
+import { ALL_SEEING, viewFor as coupViewFor } from "@/lib/coup/view";
+import type { CoupState } from "@/lib/coup/types";
+import {
+  initialState as kcInitial,
+  reducer as kcReducer,
+  type Action as KcAction,
+} from "@/lib/kings-cup/reducer";
+import type { GameState as KcState, KingMode } from "@/lib/kings-cup/types";
+import { RoomError, type GameId, type Seat } from "./types";
+
+export interface StartOptions {
+  /** King's Cup only */
+  kingMode?: KingMode;
+}
+
+interface Adapter {
+  minSeats: number;
+  maxSeats: number;
+  start(seats: Seat[], options: StartOptions): unknown;
+  /**
+   * Apply one client action. Throws unless this player is entitled to it —
+   * the client is never trusted to police whose turn it is.
+   */
+  apply(state: unknown, action: unknown, actorId: string, isHost: boolean): unknown;
+  view(state: unknown, viewerId: string | null): unknown;
+  /** true once the game is over */
+  finished(state: unknown): boolean;
+  /** true when the game has fallen back to its own setup screen */
+  atSetup(state: unknown): boolean;
+}
+
+function deny(message: string): never {
+  throw new RoomError("forbidden", message, 403);
+}
+
+// ---------- Coup ----------
+
+const coup: Adapter = {
+  minSeats: 2,
+  maxSeats: 6,
+
+  start(seats) {
+    let state = coupReducer(coupInitial(), {
+      type: "START",
+      players: seats.map((s) => ({ id: s.id, name: s.name })),
+    });
+    // Every device shows its owner their own hand, so the pass-and-peek deal
+    // round has nothing to do here — skip straight to the first turn.
+    while (state.phase === "deal") state = coupReducer(state, { type: "DEAL_NEXT" });
+    return state;
+  },
+
+  apply(raw, rawAction, actorId, isHost) {
+    const state = raw as CoupState;
+    const action = rawAction as CoupAction;
+    const turnId = state.players[state.turnIndex]?.id;
+
+    switch (action.type) {
+      case "ACT":
+        if (actorId !== turnId) deny("It is not your turn.");
+        break;
+
+      case "PASS":
+        // the reducer checks eligibility too; this keeps one device from
+        // passing on someone else's behalf
+        if (action.playerId !== actorId) deny("You can only pass for yourself.");
+        break;
+
+      case "CHALLENGE":
+        if (action.challengerId !== actorId) deny("You can only challenge for yourself.");
+        if (!responders(state).some((p) => p.id === actorId)) deny("You have no say here.");
+        break;
+
+      case "BLOCK":
+        if (action.blockerId !== actorId) deny("You can only block for yourself.");
+        break;
+
+      case "LOSE":
+        if (state.reveal?.playerId !== actorId) deny("That is not your influence to give up.");
+        break;
+
+      case "EXCHANGE_KEEP":
+        if (state.pending?.actorId !== actorId) deny("That is not your exchange.");
+        break;
+
+      case "DEAL_NEXT":
+        // rooms deal to every device at once, so nobody walks the deal along
+        deny("Not available in a room.");
+        break;
+
+      case "ALLOW":
+        // one device speaking for the table has no meaning here — use PASS
+        deny("Everyone answers for themselves in a room.");
+        break;
+
+      case "RESTART":
+      case "NEW_GAME":
+        if (!isHost) deny("Only the host can restart.");
+        break;
+
+      case "UNDO":
+        // undo would rewind cards people have already seen
+        deny("Undo is only available on a single device.");
+        break;
+
+      default:
+        throw new RoomError("bad-action", "Unknown action.", 400);
+    }
+
+    return coupReducer(state, action);
+  },
+
+  view(state, viewerId) {
+    return coupViewFor(state as CoupState, viewerId);
+  },
+
+  finished(state) {
+    return (state as CoupState).phase === "ended";
+  },
+
+  atSetup(state) {
+    return (state as CoupState).phase === "setup";
+  },
+};
+
+// ---------- King's Cup ----------
+
+const kingsCup: Adapter = {
+  minSeats: 2,
+  maxSeats: 12,
+
+  start(seats, options) {
+    return kcReducer(kcInitial(), {
+      type: "START",
+      players: seats.map((s) => ({ id: s.id, name: s.name })),
+      kingMode: options.kingMode ?? "cup",
+    });
+  },
+
+  apply(raw, rawAction, actorId, isHost) {
+    const state = raw as KcState;
+    const action = rawAction as KcAction;
+    const turnId = state.players[state.turnIndex]?.id;
+    // once a card is face up, the person who drew it resolves it
+    const resolverId = state.current?.playerId ?? turnId;
+
+    switch (action.type) {
+      case "DRAW":
+        if (actorId !== turnId) deny("It is not your turn to draw.");
+        break;
+
+      case "PICK_PLAYER":
+      case "SET_KING_RULE":
+        if (actorId !== resolverId) deny("Only the player who drew resolves the card.");
+        break;
+
+      case "USE_ACE":
+        // spending your own trump token, and only your own
+        if (action.playerId !== actorId) deny("That trump card is not yours.");
+        break;
+
+      case "RESTART":
+      case "NEW_GAME":
+        if (!isHost) deny("Only the host can restart.");
+        break;
+
+      case "UNDO":
+        if (!isHost) deny("Only the host can undo.");
+        break;
+
+      default:
+        throw new RoomError("bad-action", "Unknown action.", 400);
+    }
+
+    return kcReducer(state, action);
+  },
+
+  view(state) {
+    // every card and rule in King's Cup is public; only the undo stack is
+    // dropped, and that is bandwidth rather than secrecy
+    const { past: _past, ...rest } = state as KcState;
+    return rest;
+  },
+
+  finished(state) {
+    return (state as KcState).phase === "ended";
+  },
+
+  atSetup(state) {
+    return (state as KcState).phase === "setup";
+  },
+};
+
+const ADAPTERS: Record<GameId, Adapter> = { coup, "kings-cup": kingsCup };
+
+export function adapterFor(game: GameId): Adapter {
+  const adapter = ADAPTERS[game];
+  if (!adapter) throw new RoomError("bad-action", `Unknown game: ${game}`, 400);
+  return adapter;
+}
+
+export { ALL_SEEING };

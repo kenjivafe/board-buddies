@@ -1,11 +1,17 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource-variable/bricolage-grotesque";
+// wdth.css carries the width axis too — Coup sets condensed heavy caps with it
+import "@fontsource-variable/archivo/wdth.css";
 import "@fontsource-variable/fraunces";
 import "@fontsource-variable/instrument-sans";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "King's Cup",
-  description: "The card game, minus the arguments about who's Thumb Master.",
+  title: {
+    default: "Board Buddies",
+    template: "%s · Board Buddies",
+  },
+  description: "Party games for one phone and a full table.",
 };
 
 export const viewport: Viewport = {

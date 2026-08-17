@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
-import { initialState, reducer, STORAGE_KEY } from "@/lib/reducer";
-import type { GameState } from "@/lib/types";
+import { initialState, reducer, STORAGE_KEY } from "@/lib/kings-cup/reducer";
+import type { GameState } from "@/lib/kings-cup/types";
 import Setup from "./Setup";
 import Play from "./Play";
 import End from "./End";
@@ -63,7 +63,7 @@ export default function Game() {
               Start over
             </button>
             <button
-              className="btn btn-gold"
+              className="btn btn-primary"
               onClick={() => {
                 dispatch({ type: "HYDRATE", state: resume });
                 setResume(null);

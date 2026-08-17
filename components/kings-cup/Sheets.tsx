@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { rankLabel, SUIT_COLOR, SUIT_GLYPH } from "@/lib/deck";
-import { RULES } from "@/lib/rules";
-import type { GameState } from "@/lib/types";
+import { rankLabel, SUIT_COLOR, SUIT_GLYPH } from "@/lib/kings-cup/deck";
+import { RULES } from "@/lib/kings-cup/rules";
+import type { KcView } from "@/lib/kings-cup/view";
 
 export function Sheet({
   title,
@@ -39,7 +39,7 @@ export function PickPlayerSheet({
   excludeId,
   onPick,
 }: {
-  state: GameState;
+  state: KcView;
   title: string;
   sub: string;
   excludeId: string;
@@ -87,7 +87,7 @@ export function KingRuleSheet({
         <button className="btn btn-ghost" onClick={() => onSet("")}>
           Said out loud
         </button>
-        <button className="btn btn-gold" onClick={() => onSet(text)} disabled={!text.trim()}>
+        <button className="btn btn-primary" onClick={() => onSet(text)} disabled={!text.trim()}>
           Set rule
         </button>
       </div>
@@ -95,7 +95,7 @@ export function KingRuleSheet({
   );
 }
 
-export function HistorySheet({ state, onClose }: { state: GameState; onClose: () => void }) {
+export function HistorySheet({ state, onClose }: { state: KcView; onClose: () => void }) {
   const rows = [...state.drawn].reverse();
   return (
     <Sheet title="Drawn so far" sub={`${state.drawn.length} of 52`} onClose={onClose}>
@@ -152,7 +152,7 @@ export function ConfirmSheet({
         <button className="btn btn-ghost" onClick={onCancel}>
           Cancel
         </button>
-        <button className={`btn ${danger ? "btn-oxblood" : "btn-gold"}`} onClick={onConfirm}>
+        <button className={`btn ${danger ? "btn-danger" : "btn-primary"}`} onClick={onConfirm}>
           {confirmLabel}
         </button>
       </div>

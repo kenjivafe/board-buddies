@@ -1,4 +1,5 @@
-import type { GameState, Player } from "./types";
+import type { Player } from "./types";
+import type { KcView } from "./view";
 
 export interface RuleInfo {
   title: string;
@@ -27,7 +28,7 @@ function playerName(players: Player[], id: string | null | undefined): string {
 }
 
 /** Full instruction text for a freshly drawn card, with names resolved. */
-export function instructionFor(state: GameState, drawerId: string): string {
+export function instructionFor(state: KcView, drawerId: string): string {
   const card = state.current?.card;
   if (!card) return "";
   const players = state.players;

@@ -1,7 +1,7 @@
 "use client";
 
-import { rankLabel, SUIT_COLOR, SUIT_GLYPH } from "@/lib/deck";
-import type { Card } from "@/lib/types";
+import { rankLabel, SUIT_COLOR, SUIT_GLYPH } from "@/lib/kings-cup/deck";
+import type { Card } from "@/lib/kings-cup/types";
 
 export default function PlayingCard({
   card,

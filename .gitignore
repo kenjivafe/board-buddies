@@ -8,6 +8,7 @@ out/
 # Build
 dist/
 build/
+*.tsbuildinfo
 
 # Environment variables
 .env

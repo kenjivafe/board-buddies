@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Action } from "@/lib/reducer";
-import { instructionFor, RULES } from "@/lib/rules";
-import type { GameState } from "@/lib/types";
+import type { Action } from "@/lib/kings-cup/reducer";
+import { instructionFor, RULES } from "@/lib/kings-cup/rules";
+import type { KcView } from "@/lib/kings-cup/view";
 import PlayingCard from "./PlayingCard";
 import { ConfirmSheet, HistorySheet, KingRuleSheet, PickPlayerSheet, Sheet } from "./Sheets";
 
@@ -12,10 +12,18 @@ const DRINK_RANKS = new Set([2, 3, 4, 5, 6, 7]);
 export default function Play({
   state,
   dispatch,
+  selfId = null,
+  canUndo = true,
 }: {
-  state: GameState;
+  state: KcView;
   dispatch: React.Dispatch<Action>;
+  /** set in a room; null on a shared phone, where anyone may tap anything */
+  selfId?: string | null;
+  canUndo?: boolean;
 }) {
+  const shared = selfId == null;
+  const myDraw = shared || selfId === state.players[state.turnIndex]?.id;
+  const myResolve = shared || selfId === state.current?.playerId;
   const [showHistory, setShowHistory] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [aceSheet, setAceSheet] = useState(false);
@@ -125,15 +133,15 @@ export default function Play({
         <button
           className="draw-btn"
           onClick={() => dispatch({ type: "DRAW" })}
-          disabled={!!state.pending || state.deck.length === 0}
+          disabled={!!state.pending || state.deck.length === 0 || !myDraw}
         >
-          Draw {upNext ? `· ${upNext.name}` : ""}
+          {myDraw ? `Draw ${upNext ? `· ${upNext.name}` : ""}` : `${upNext?.name ?? "Someone"} to draw`}
         </button>
         <span style={{ display: "flex", gap: 8 }}>
           <button
             className="bar-btn"
             onClick={() => dispatch({ type: "UNDO" })}
-            disabled={state.past.length === 0}
+            disabled={!canUndo}
             aria-label="Undo last draw"
           >
             Undo
@@ -145,7 +153,7 @@ export default function Play({
       </footer>
 
       {/* pending interactions */}
-      {state.pending === "pick-target" && current && (
+      {state.pending === "pick-target" && current && myResolve && (
         <PickPlayerSheet
           state={state}
           title="You"
@@ -154,7 +162,7 @@ export default function Play({
           onPick={(id) => dispatch({ type: "PICK_PLAYER", targetId: id })}
         />
       )}
-      {state.pending === "pick-mate" && current && (
+      {state.pending === "pick-mate" && current && myResolve && (
         <PickPlayerSheet
           state={state}
           title="Mate"
@@ -163,7 +171,7 @@ export default function Play({
           onPick={(id) => dispatch({ type: "PICK_PLAYER", targetId: id })}
         />
       )}
-      {state.pending === "king-rule" && current && (
+      {state.pending === "king-rule" && current && myResolve && (
         <KingRuleSheet
           authorName={nameOf(current.playerId)}
           onSet={(text) => dispatch({ type: "SET_KING_RULE", text })}

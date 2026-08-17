@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { Action } from "@/lib/reducer";
-import type { GameState, KingMode, Player } from "@/lib/types";
+import Link from "next/link";
+import type { Action } from "@/lib/kings-cup/reducer";
+import type { GameState, KingMode, Player } from "@/lib/kings-cup/types";
 
 const MAX_PLAYERS = 12;
 
@@ -38,6 +39,10 @@ export default function Setup({
 
   return (
     <>
+      <Link className="back-link" href="/">
+        <span aria-hidden>←</span> Board Buddies
+      </Link>
+
       <header className="setup-hero">
         <span className="crown" aria-hidden>
           {"\u2654"}
@@ -60,7 +65,7 @@ export default function Setup({
             onKeyDown={(e) => e.key === "Enter" && add()}
             aria-label="Player name"
           />
-          <button className="btn btn-gold" onClick={add} disabled={!name.trim() || players.length >= MAX_PLAYERS}>
+          <button className="btn btn-primary" onClick={add} disabled={!name.trim() || players.length >= MAX_PLAYERS}>
             Add
           </button>
         </div>
@@ -100,7 +105,7 @@ export default function Setup({
 
       <footer className="setup-footer">
         <button
-          className="btn btn-gold draw-btn"
+          className="btn btn-primary draw-btn"
           disabled={!canStart}
           onClick={() => dispatch({ type: "START", players, kingMode: mode })}
         >

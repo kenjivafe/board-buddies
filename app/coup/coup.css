@@ -1,0 +1,951 @@
+/* ============================================================
+   COUP — the print shop
+   Built to match the deck: riso halftone grain, cream card stock,
+   bold condensed caps, flat angular devices, one hue per character.
+
+   Scoped to the game's route. The first block is the skin: its own
+   palette plus the semantic tokens from app/globals.css remapped
+   onto it, so the shared shell, type and controls arrive in uniform.
+   ============================================================ */
+
+[data-game="coup"] {
+  /* --- ink: sampled from the cards' caption band --- */
+  --ink: #191719;
+  --ink-2: #221f23;
+  --ink-3: #2e2a2f;
+
+  /* --- the cream the cards are printed on. Coup's UI ink is the stock
+         itself, so a primary button reads like a piece of the deck. --- */
+  --stock: #ecd8c0;
+  --stock-2: #d8c0a2;
+  --bone: #f4ead9;
+  --bone-dim: #b9ab97;
+
+  --hot: #e6304a;
+  --coin: #e2a93a;
+  --card-stock: var(--stock);
+
+  /* the five characters, sampled from the card art */
+  --duke: #cf4a86;
+  --assassin: #a3a8b0;
+  --captain: #3287cc;
+  --ambassador: #a8ad35;
+  --contessa: #c33b45;
+
+  /* --- the shared contract, printed --- */
+  --surface: var(--ink-2);
+  --surface-2: var(--ink-3);
+  --text: var(--bone);
+  --text-dim: var(--bone-dim);
+  --muted: #857a6d;
+  --line: rgba(236, 216, 192, 0.15);
+  --accent: var(--stock);
+  --accent-ink: #191719;
+  --danger: var(--hot);
+  --danger-ink: #fdf2f2;
+  --display: "Archivo Variable", "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --display-vf: normal;
+  --radius: 7px;
+
+  position: relative;
+  min-height: 100dvh;
+  color: var(--text);
+  background:
+    radial-gradient(112% 52% at 50% 0%, rgba(230, 48, 74, 0.11) 0%, transparent 58%),
+    var(--ink);
+}
+
+/* the halftone screen the whole deck is printed through */
+[data-game="coup"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgba(236, 216, 192, 0.05) 0.5px, transparent 0.6px),
+    radial-gradient(rgba(230, 48, 74, 0.035) 0.5px, transparent 0.6px);
+  background-size: 4px 4px, 7px 7px;
+  background-position: 0 0, 2px 3px;
+}
+
+[data-game="coup"] .shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- printed type ---------- */
+
+[data-game="coup"] .title {
+  font-size: clamp(44px, 12.5vw, 60px);
+  font-weight: 800;
+  font-stretch: 76%;
+  line-height: 0.88;
+  letter-spacing: 0.004em;
+  text-transform: uppercase;
+}
+
+[data-game="coup"] .title em {
+  font-style: normal;
+  color: var(--hot);
+}
+
+[data-game="coup"] .eyebrow {
+  font-weight: 600;
+  color: var(--stock-2);
+}
+
+[data-game="coup"] .btn {
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/**
+ * The deck's signature mark: a hatched bar cut off at an angle with a solid
+ * blade beneath it, sitting under every character name on every card.
+ */
+.chevron {
+  position: relative;
+  display: block;
+  width: 84px;
+  height: 19px;
+  flex: none;
+}
+
+.chevron::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 9px;
+  background: repeating-linear-gradient(108deg, var(--c) 0 2px, transparent 2px 5.5px);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.chevron::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 36px;
+  height: 7px;
+  background: var(--c);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 7px) 100%, 0 100%);
+}
+
+.chevron.centered {
+  margin: 0 auto;
+}
+
+/* ---------- hero ---------- */
+
+.coup-hero {
+  padding: 6vh 0 24px;
+  text-align: center;
+}
+
+/* the five sigils, each in its own ink — the deck at a glance */
+.crest {
+  display: flex;
+  justify-content: center;
+  gap: 13px;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.crest span {
+  color: var(--c);
+}
+
+.coup-hero .chevron {
+  margin: 14px auto 0;
+  --c: var(--hot);
+}
+
+.coup-sub {
+  margin: 14px auto 0;
+  max-width: 31ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* ---------- setup ---------- */
+
+.field-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+[data-game="coup"] .text-input {
+  border-radius: 5px;
+}
+
+.player-list {
+  list-style: none;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--stock-2);
+  border-radius: 5px;
+  padding: 10px 12px;
+}
+
+.player-row .seat {
+  width: 18px;
+  font-family: var(--display);
+  font-size: 12px;
+  font-weight: 700;
+  font-stretch: 80%;
+  color: var(--muted);
+}
+
+.player-row .name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.court-key {
+  margin-top: 26px;
+}
+
+.key-list {
+  list-style: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 11px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  background: var(--surface);
+}
+
+.key-thumb {
+  flex: none;
+  width: 34px;
+  aspect-ratio: 1054 / 1492;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--card-stock);
+}
+
+.key-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.key-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.key-name {
+  display: block;
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 800;
+  font-stretch: 78%;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.key-power {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* sits under the power line — a right-hand column can't hold
+   "Blocks assassination" at this width without overflowing */
+.key-counter {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 70%, var(--muted));
+}
+
+.setup-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- pass gate ---------- */
+
+.gate {
+  margin: auto 0;
+  padding: 8vh 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gate-name {
+  font-family: var(--display);
+  font-size: clamp(32px, 10.5vw, 48px);
+  font-weight: 800;
+  font-stretch: 76%;
+  line-height: 0.92;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.gate-note {
+  margin: 0 auto;
+  max-width: 30ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.gate .btn {
+  margin-top: 8px;
+}
+
+/* ---------- cards ---------- */
+
+/* One slot holds a card and, when it renders small, its name underneath.
+   Slots divide the row evenly but never grow past a comfortable reading size. */
+.card-slot {
+  --c: var(--muted);
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: center;
+}
+
+.coup-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  /* the art's own proportions, so nothing is ever letterboxed */
+  aspect-ratio: 1054 / 1492;
+  border-radius: 9px;
+  overflow: hidden;
+  background: var(--card-stock);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.45);
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+.card-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+button.card-slot:active .coup-card {
+  transform: scale(0.98);
+}
+
+.card-slot.selected .coup-card {
+  box-shadow: 0 0 0 2px var(--c), 0 5px 16px rgba(0, 0, 0, 0.45);
+}
+
+.card-slot.spent .coup-card {
+  box-shadow: none;
+}
+
+/* chip sits over the illustration, never over the printed name or ability */
+.card-tag {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 9px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--c) 70%, transparent);
+  background: rgba(25, 23, 25, 0.88);
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 800;
+  font-stretch: 82%;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--bone);
+}
+
+.spent-band {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(25, 23, 25, 0.62);
+  font-family: var(--display);
+  font-size: 9.5px;
+  font-weight: 800;
+  font-stretch: 82%;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+}
+
+.card-caption {
+  font-family: var(--display);
+  font-size: 11.5px;
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+/* the back: same cream stock, the deck's hatching where the art would be */
+.coup-card.back {
+  display: grid;
+  padding: 2.6%;
+}
+
+.back-panel {
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(108deg, rgba(236, 216, 192, 0.08) 0 2px, transparent 2px 5.5px),
+    #1f1c20;
+}
+
+.back-panel .seal {
+  font-size: 14px;
+  color: rgba(236, 216, 192, 0.26);
+}
+
+/* ---------- hold to peek ---------- */
+
+.peek {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.peek-cards {
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+}
+
+/* face and back both stay mounted; the back just lifts away */
+.flip {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.flip .back-layer {
+  position: absolute;
+  inset: 0;
+  transition: opacity 0.14s ease;
+}
+
+.flip.open .back-layer {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.peek-label {
+  display: block;
+  margin-top: 11px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.peek[aria-pressed="true"] .peek-label {
+  color: var(--hot);
+}
+
+.peek-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.peek-open {
+  margin-top: 14px;
+  width: 100%;
+}
+
+/* ---------- deal ---------- */
+
+.deal-head {
+  padding: 6px 0 0;
+  text-align: center;
+}
+
+.deal-body {
+  margin: auto 0;
+  padding: 4vh 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.deal-name {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 800;
+  font-stretch: 78%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- play head ---------- */
+
+.play-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0 12px;
+}
+
+/* ---------- the table ---------- */
+
+.roster {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.roster-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 11px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  background: var(--surface);
+  transition: border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.roster-row.acting {
+  border-left-color: var(--hot);
+  background: linear-gradient(90deg, rgba(230, 48, 74, 0.14), var(--surface) 62%);
+}
+
+.roster-row.marked {
+  border-left-color: var(--stock-2);
+}
+
+.roster-row.out {
+  opacity: 0.4;
+}
+
+.roster-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.out-tag {
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 800;
+  font-stretch: 82%;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--display);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  font-weight: 800;
+  font-stretch: 84%;
+  color: var(--coin);
+}
+
+.coin-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #f6dd9c, var(--coin) 60%, #97701f);
+}
+
+.pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.pip {
+  --c: var(--muted);
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 24px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background:
+    repeating-linear-gradient(108deg, rgba(236, 216, 192, 0.09) 0 2px, transparent 2px 5.5px),
+    var(--ink-3);
+  font-size: 9px;
+}
+
+.pip.spent {
+  border-color: color-mix(in srgb, var(--c) 55%, transparent);
+  background: color-mix(in srgb, var(--c) 28%, var(--ink-3));
+  color: color-mix(in srgb, var(--c) 72%, var(--bone));
+}
+
+.court-count {
+  margin-top: 9px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- the feed ---------- */
+
+.feed {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--stock-2);
+  background: rgba(16, 14, 16, 0.6);
+}
+
+.feed-line {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.feed-line.latest {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.feed-line.kind-challenge.latest {
+  color: var(--hot);
+}
+
+.feed-line.kind-out.latest,
+.feed-line.kind-loss.latest {
+  color: var(--contessa);
+}
+
+/* ---------- action menu ---------- */
+
+.panel {
+  margin-top: 18px;
+  padding-bottom: 8px;
+}
+
+.notice {
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--hot) 45%, transparent);
+  border-left: 3px solid var(--hot);
+  background: rgba(230, 48, 74, 0.12);
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.action-btn {
+  --c: var(--stock-2);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 11px;
+  text-align: left;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.08s ease;
+}
+
+.action-btn:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 12%, transparent), var(--surface));
+}
+
+.action-btn:active {
+  transform: scale(0.98);
+}
+
+.action-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.action-label {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 800;
+  font-stretch: 78%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.action-cost {
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 800;
+  font-stretch: 84%;
+  font-variant-numeric: tabular-nums;
+  color: var(--coin);
+}
+
+.action-blurb {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.action-claim {
+  font-family: var(--display);
+  font-size: 9px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c) 68%, var(--muted));
+}
+
+/* ---------- the claim: a card pulled from the deck and printed ---------- */
+
+.claim {
+  --c: var(--ink);
+  position: relative;
+  padding: 15px 16px 14px;
+  border-radius: 6px;
+  background: var(--stock);
+  color: var(--ink);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+/* the stock is printed too */
+.claim::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(25, 23, 25, 0.07) 0.5px, transparent 0.6px);
+  background-size: 4px 4px;
+}
+
+.claim-glyph {
+  display: block;
+  margin-bottom: 9px;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--c);
+}
+
+.claim-text {
+  font-family: var(--display);
+  font-size: clamp(20px, 6vw, 26px);
+  font-weight: 800;
+  font-stretch: 76%;
+  line-height: 1.02;
+  letter-spacing: 0.012em;
+  text-transform: uppercase;
+  color: #141114;
+}
+
+.claim .chevron {
+  margin: 10px 0 0;
+}
+
+.claim-note {
+  margin-top: 9px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: rgba(25, 23, 25, 0.62);
+}
+
+.reaction-row {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ---------- pickers ---------- */
+
+.picker,
+.choose {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choose-title {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.pick-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.pick-btn {
+  --c: var(--hot);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px;
+  text-align: left;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  background: var(--surface);
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.pick-btn:hover {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 12%, transparent), var(--surface));
+}
+
+.pick-btn:active {
+  transform: scale(0.98);
+}
+
+.pick-name {
+  font-family: var(--display);
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.pick-meta {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.choose-cards {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* ---------- end ---------- */
+
+.standings {
+  list-style: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.standing {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-left: 3px solid transparent;
+  background: var(--surface);
+  opacity: 0.58;
+}
+
+.standing.alive {
+  opacity: 1;
+  border-left-color: var(--hot);
+}
+
+.standing-name {
+  font-family: var(--display);
+  font-weight: 800;
+  font-stretch: 80%;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.standing-note {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coup-card,
+  .action-btn,
+  .pick-btn,
+  .roster-row,
+  .flip .back-layer {
+    transition: none;
+  }
+}

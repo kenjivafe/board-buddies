@@ -1,0 +1,478 @@
+import { buildCourt, CHARACTER_INFO, shuffle } from "./deck";
+import { ACTIONS, claimText, isAlive, responders } from "./rules";
+import type {
+  ActionKind,
+  Character,
+  CoupPlayer,
+  CoupState,
+  InfluenceCard,
+  LogKind,
+  RevealThen,
+} from "./types";
+
+export const STORAGE_KEY = "coup-v1";
+const UNDO_LIMIT = 30;
+const LOG_LIMIT = 60;
+const STARTING_COINS = 2;
+
+export type Action =
+  | { type: "START"; players: { id: string; name: string }[] }
+  | { type: "DEAL_NEXT" }
+  | { type: "ACT"; action: ActionKind; targetId?: string }
+  /** nobody challenged (reaction) or nobody challenged the block (block) */
+  | { type: "ALLOW" }
+  /** one responder declines to object; the action waits for the rest */
+  | { type: "PASS"; playerId: string }
+  | { type: "CHALLENGE"; challengerId: string }
+  | { type: "BLOCK"; blockerId: string; claim: Character }
+  | { type: "LOSE"; cardId: string }
+  | { type: "EXCHANGE_KEEP"; cardIds: string[] }
+  | { type: "UNDO" }
+  | { type: "RESTART" }
+  | { type: "NEW_GAME" }
+  | { type: "HYDRATE"; state: CoupState };
+
+export function initialState(): CoupState {
+  return {
+    phase: "setup",
+    players: [],
+    court: [],
+    turnIndex: 0,
+    pending: null,
+    reveal: null,
+    exchangeDraw: [],
+    dealIndex: 0,
+    log: [],
+    winnerId: null,
+    past: [],
+  };
+}
+
+function snapshot(state: CoupState): string {
+  const { past, ...rest } = state;
+  return JSON.stringify(rest);
+}
+
+function pushPast(state: CoupState): string[] {
+  const past = [...state.past, snapshot(state)];
+  return past.length > UNDO_LIMIT ? past.slice(-UNDO_LIMIT) : past;
+}
+
+/** The state tree nests players → cards, so work on a copy and mutate it freely. */
+function draft(state: CoupState): CoupState {
+  return JSON.parse(JSON.stringify(state)) as CoupState;
+}
+
+function find(d: CoupState, id: string | null): CoupPlayer | null {
+  if (!id) return null;
+  return d.players.find((p) => p.id === id) ?? null;
+}
+
+function say(d: CoupState, text: string, kind: LogKind) {
+  d.log = [...d.log, { text, kind }].slice(-LOG_LIMIT);
+}
+
+function name(d: CoupState, id: string | null): string {
+  return find(d, id)?.name ?? "someone";
+}
+
+// ---------- flow ----------
+
+/** Ends the game the moment only one influence-holder is left standing. */
+function checkWin(d: CoupState): boolean {
+  const alive = d.players.filter(isAlive);
+  if (alive.length > 1) return false;
+  d.phase = "ended";
+  d.winnerId = alive[0]?.id ?? null;
+  d.pending = null;
+  d.reveal = null;
+  d.exchangeDraw = [];
+  if (alive[0]) say(d, `${alive[0].name} is the last one holding power.`, "out");
+  return true;
+}
+
+function advanceTurn(d: CoupState) {
+  d.pending = null;
+  d.reveal = null;
+  d.exchangeDraw = [];
+  if (checkWin(d)) return;
+  let i = d.turnIndex;
+  for (let n = 0; n < d.players.length; n++) {
+    i = (i + 1) % d.players.length;
+    if (isAlive(d.players[i])) break;
+  }
+  d.turnIndex = i;
+  d.phase = "turn";
+  say(d, `${d.players[i].name} to act.`, "turn");
+}
+
+/**
+ * Ask `playerId` to surrender an influence. With one card left there is no
+ * decision to make, so it flips on the spot.
+ */
+function requestReveal(d: CoupState, playerId: string, reason: string, then: RevealThen) {
+  const player = find(d, playerId);
+  const live = player?.cards.filter((c) => !c.revealed) ?? [];
+  if (!player || live.length === 0) {
+    // already eliminated — nothing left to take
+    if (then === "resolve") resolveAction(d);
+    else advanceTurn(d);
+    return;
+  }
+  if (live.length === 1) {
+    loseCard(d, playerId, live[0].id, then);
+    return;
+  }
+  d.reveal = { playerId, reason, then };
+  d.phase = "reveal";
+}
+
+function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealThen) {
+  const player = find(d, playerId);
+  const card = player?.cards.find((c) => c.id === cardId);
+  if (!player || !card || card.revealed) return;
+  card.revealed = true;
+  d.reveal = null;
+  say(d, `${player.name} turns over the ${CHARACTER_INFO[card.character].name}.`, "loss");
+  if (!isAlive(player)) say(d, `${player.name} is out.`, "out");
+  if (checkWin(d)) return;
+  if (then === "resolve") resolveAction(d);
+  else advanceTurn(d);
+}
+
+/** Puts a proven card back in the court, shuffles, and draws a replacement. */
+function swapProvenCard(d: CoupState, playerId: string, cardId: string) {
+  const player = find(d, playerId);
+  if (!player) return;
+  const index = player.cards.findIndex((c) => c.id === cardId);
+  if (index < 0) return;
+  const pool = shuffle([...d.court, player.cards[index]]);
+  player.cards[index] = pool[0];
+  d.court = pool.slice(1);
+}
+
+/** Carries out the pending action now that nobody has stopped it. */
+function resolveAction(d: CoupState) {
+  const pending = d.pending;
+  if (!pending) {
+    advanceTurn(d);
+    return;
+  }
+  const actor = find(d, pending.actorId);
+  const target = find(d, pending.targetId);
+  if (!actor) {
+    advanceTurn(d);
+    return;
+  }
+
+  switch (pending.action) {
+    case "income":
+      actor.coins += 1;
+      say(d, `${actor.name} takes 1 coin.`, "action");
+      advanceTurn(d);
+      return;
+
+    case "foreign_aid":
+      actor.coins += 2;
+      say(d, `${actor.name} takes 2 in foreign aid.`, "action");
+      advanceTurn(d);
+      return;
+
+    case "tax":
+      actor.coins += 3;
+      say(d, `${actor.name} taxes the court for 3.`, "action");
+      advanceTurn(d);
+      return;
+
+    case "steal": {
+      if (!target || !isAlive(target)) {
+        advanceTurn(d);
+        return;
+      }
+      const amount = Math.min(2, target.coins);
+      target.coins -= amount;
+      actor.coins += amount;
+      say(
+        d,
+        amount === 0
+          ? `${target.name} had nothing to steal.`
+          : `${actor.name} steals ${amount} from ${target.name}.`,
+        "action"
+      );
+      advanceTurn(d);
+      return;
+    }
+
+    case "exchange": {
+      if (!isAlive(actor)) {
+        advanceTurn(d);
+        return;
+      }
+      d.exchangeDraw = d.court.slice(0, 2);
+      d.court = d.court.slice(2);
+      d.phase = "exchange";
+      return;
+    }
+
+    case "assassinate":
+    case "coup": {
+      if (!target || !isAlive(target)) {
+        // the target went down earlier in the exchange of challenges
+        advanceTurn(d);
+        return;
+      }
+      const reason =
+        pending.action === "coup"
+          ? `${actor.name} staged a coup against you.`
+          : `${actor.name}'s assassin got through.`;
+      requestReveal(d, target.id, reason, "next");
+      return;
+    }
+  }
+}
+
+/**
+ * Settle a challenge. If the claim holds, the challenger pays; if it was a
+ * bluff, the claimant pays. `onProve` / `onBluff` decide whether the original
+ * action still goes ahead, which differs between challenging an actor and
+ * challenging a blocker.
+ */
+function resolveChallenge(
+  d: CoupState,
+  challengerId: string,
+  claimantId: string,
+  claim: Character,
+  onProve: RevealThen,
+  onBluff: RevealThen
+) {
+  const claimant = find(d, claimantId);
+  if (!claimant) {
+    advanceTurn(d);
+    return;
+  }
+  const held = claimant.cards.find((c) => !c.revealed && c.character === claim);
+  const label = CHARACTER_INFO[claim].name;
+
+  if (held) {
+    say(
+      d,
+      `${claimant.name} shows the ${label}. ${name(d, challengerId)} called it wrong.`,
+      "challenge"
+    );
+    swapProvenCard(d, claimantId, held.id);
+    requestReveal(d, challengerId, `You lost a challenge to ${claimant.name}.`, onProve);
+  } else {
+    say(d, `${claimant.name} has no ${label} — caught bluffing.`, "challenge");
+    requestReveal(d, claimantId, `${name(d, challengerId)} caught your bluff.`, onBluff);
+  }
+}
+
+// ---------- reducer ----------
+
+export function reducer(state: CoupState, action: Action): CoupState {
+  switch (action.type) {
+    case "START": {
+      if (action.players.length < 2) return state;
+      const court = buildCourt();
+      const players: CoupPlayer[] = action.players.map((p, i) => ({
+        id: p.id,
+        name: p.name,
+        // head-to-head, whoever opens starts a coin short
+        coins: action.players.length === 2 && i === 0 ? STARTING_COINS - 1 : STARTING_COINS,
+        cards: [court[i * 2], court[i * 2 + 1]],
+      }));
+      const d: CoupState = {
+        ...initialState(),
+        phase: "deal",
+        players,
+        court: court.slice(action.players.length * 2),
+      };
+      // head-to-head starts the opener a coin down, so don't promise "two each"
+      say(d, "Two influences each, face down.", "turn");
+      return d;
+    }
+
+    case "DEAL_NEXT": {
+      if (state.phase !== "deal") return state;
+      const d = draft(state);
+      if (d.dealIndex + 1 >= d.players.length) {
+        d.dealIndex = 0;
+        d.turnIndex = 0;
+        d.phase = "turn";
+        say(d, `${d.players[0].name} opens.`, "turn");
+      } else {
+        d.dealIndex += 1;
+      }
+      return d;
+    }
+
+    case "ACT": {
+      if (state.phase !== "turn") return state;
+      const info = ACTIONS[action.action];
+      const actorSeat = state.players[state.turnIndex];
+      if (!actorSeat || actorSeat.coins < info.cost) return state;
+      if (info.needsTarget && !action.targetId) return state;
+
+      const d = draft(state);
+      d.past = pushPast(state);
+      const actor = d.players[d.turnIndex];
+      // assassination and coup are paid for on declaration, blocked or not
+      actor.coins -= info.cost;
+      d.pending = {
+        actorId: actor.id,
+        action: action.action,
+        targetId: action.targetId ?? null,
+        claim: info.claim,
+        blockerId: null,
+        blockClaim: null,
+        passed: [],
+      };
+      // name() falls back to "someone", so only resolve it when there really is a target
+      const targetName = action.targetId ? name(d, action.targetId) : null;
+      say(d, claimText(actor.name, action.action, targetName), "action");
+
+      // income and coup allow no argument at all
+      if (action.action === "income" || action.action === "coup") resolveAction(d);
+      else d.phase = "reaction";
+      return d;
+    }
+
+    case "ALLOW": {
+      if (state.phase !== "reaction" && state.phase !== "block") return state;
+      const d = draft(state);
+      d.past = pushPast(state);
+      if (state.phase === "reaction") {
+        resolveAction(d);
+      } else {
+        say(d, `${name(d, d.pending?.blockerId ?? null)}'s block stands.`, "block");
+        advanceTurn(d);
+      }
+      return d;
+    }
+
+    case "PASS": {
+      if (state.phase !== "reaction" && state.phase !== "block") return state;
+      if (!state.pending) return state;
+      const eligible = responders(state).map((p) => p.id);
+      if (!eligible.includes(action.playerId)) return state;
+      if (state.pending.passed.includes(action.playerId)) return state;
+
+      const d = draft(state);
+      d.past = pushPast(state);
+      d.pending!.passed = [...d.pending!.passed, action.playerId];
+      say(d, `${name(d, action.playerId)} lets it go.`, "turn");
+
+      // once nobody is left to object, the table has spoken
+      if (eligible.every((id) => d.pending!.passed.includes(id))) {
+        if (state.phase === "reaction") {
+          resolveAction(d);
+        } else {
+          say(d, `${name(d, d.pending?.blockerId ?? null)}'s block stands.`, "block");
+          advanceTurn(d);
+        }
+      }
+      return d;
+    }
+
+    case "CHALLENGE": {
+      const pending = state.pending;
+      if (!pending) return state;
+      const d = draft(state);
+      d.past = pushPast(state);
+      if (state.phase === "reaction") {
+        if (!pending.claim) return state;
+        // claim holds → action goes ahead; bluff → action dies
+        resolveChallenge(d, action.challengerId, pending.actorId, pending.claim, "resolve", "next");
+      } else if (state.phase === "block") {
+        if (!pending.blockerId || !pending.blockClaim) return state;
+        // block holds → action is stopped; bluff → action goes ahead
+        resolveChallenge(
+          d,
+          action.challengerId,
+          pending.blockerId,
+          pending.blockClaim,
+          "next",
+          "resolve"
+        );
+      } else {
+        return state;
+      }
+      return d;
+    }
+
+    case "BLOCK": {
+      if (state.phase !== "reaction" || !state.pending) return state;
+      if (!ACTIONS[state.pending.action].blockedBy.includes(action.claim)) return state;
+      const d = draft(state);
+      d.past = pushPast(state);
+      d.pending!.blockerId = action.blockerId;
+      d.pending!.blockClaim = action.claim;
+      // the question on the table has changed, so earlier passes don't carry over
+      d.pending!.passed = [];
+      say(
+        d,
+        `${name(d, action.blockerId)} blocks with the ${CHARACTER_INFO[action.claim].name}.`,
+        "block"
+      );
+      d.phase = "block";
+      return d;
+    }
+
+    case "LOSE": {
+      if (state.phase !== "reveal" || !state.reveal) return state;
+      const d = draft(state);
+      d.past = pushPast(state);
+      const { playerId, then } = d.reveal!;
+      loseCard(d, playerId, action.cardId, then);
+      return d;
+    }
+
+    case "EXCHANGE_KEEP": {
+      if (state.phase !== "exchange" || !state.pending) return state;
+      const d = draft(state);
+      const actor = find(d, d.pending!.actorId);
+      if (!actor) return state;
+      const live = actor.cards.filter((c) => !c.revealed);
+      const pool: InfluenceCard[] = [...live, ...d.exchangeDraw];
+      const keep = action.cardIds
+        .map((id) => pool.find((c) => c.id === id))
+        .filter((c): c is InfluenceCard => Boolean(c));
+      // must hand back down to the same number of influences held
+      if (keep.length !== live.length) return state;
+
+      d.past = pushPast(state);
+      const returned = pool.filter((c) => !action.cardIds.includes(c.id));
+      actor.cards = [...keep, ...actor.cards.filter((c) => c.revealed)];
+      d.court = shuffle([...d.court, ...returned]);
+      d.exchangeDraw = [];
+      say(d, `${actor.name} trades with the court.`, "action");
+      advanceTurn(d);
+      return d;
+    }
+
+    case "UNDO": {
+      if (state.past.length === 0) return state;
+      const past = [...state.past];
+      const previous = past.pop()!;
+      return { ...(JSON.parse(previous) as Omit<CoupState, "past">), past } as CoupState;
+    }
+
+    case "RESTART":
+      return reducer(initialState(), {
+        type: "START",
+        players: state.players.map((p) => ({ id: p.id, name: p.name })),
+      });
+
+    case "NEW_GAME": {
+      const fresh = initialState();
+      fresh.players = state.players.map((p) => ({ ...p, coins: STARTING_COINS, cards: [] }));
+      return fresh;
+    }
+
+    case "HYDRATE":
+      return action.state;
+
+    default:
+      return state;
+  }
+}

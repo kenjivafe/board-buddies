@@ -1,5 +1,5 @@
-import { initialState, reducer } from "./lib/reducer";
-import type { GameState, Player } from "./lib/types";
+import { initialState, reducer } from "./lib/kings-cup/reducer";
+import type { GameState, Player } from "./lib/kings-cup/types";
 
 const players: Player[] = ["Kenji", "Miko", "Ana"].map((name, i) => ({ id: `p${i}`, name }));
 

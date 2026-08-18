@@ -22,18 +22,23 @@ export interface VoiceProfile {
 export const VOICES: VoiceProfile[] = [
   {
     id: "narrator",
+    // Deliberately austere and weathered: the earlier take was another smooth
+    // refined Englishman and was indistinguishable from the Ambassador.
     description:
-      "Deep, mature male voice with a refined British accent. Restrained, sophisticated and quietly ominous. Calm, authoritative, deliberate pacing. An impartial chronicler of a dangerous political game — never a fantasy RPG narrator, never a movie-trailer voice.",
+      "British man in his sixties. Deep, dry, faintly gravelly voice with a refined but austere accent. Restrained, detached and quietly ominous, with slow deliberate pacing and a trace of weariness. An impartial chronicler of a dangerous political game — never warm, never charming, never a movie-trailer voice.",
   },
   {
     id: "duke",
+    // the card shows an East Asian statesman in imperial robes
     description:
-      "Aristocratic British man in his late fifties. Deep, resonant baritone. Powerful, commanding, sophisticated, cold and controlled. A wealthy statesman entirely accustomed to authority.",
+      "An aristocratic Chinese man in his late fifties. He speaks English with a clear, unmistakable East Asian accent — dignified and precise rather than broad. Deep, resonant baritone. Powerful, commanding, sophisticated, cold and controlled: a wealthy statesman entirely accustomed to authority.",
   },
   {
     id: "assassin",
+    // The card shows a woman, whatever the brief said. Leading with that,
+    // emphatically, because a softer phrasing came back male.
     description:
-      "Man in his early thirties. Low, quiet, controlled voice with a subtle British accent. Calculating and emotionally detached, smooth, with understated menace. Never shouty.",
+      "A woman. Female voice, in her early thirties, with a distinctly Russian accent. Husky, raspy, smoky texture — low and quiet, never shrill and never girlish. Cold, calculating and emotionally detached, with understated menace. Never shouty, never seductive.",
   },
   {
     id: "captain",
@@ -42,8 +47,9 @@ export const VOICES: VoiceProfile[] = [
   },
   {
     id: "ambassador",
+    // the card shows a South Asian envoy in a turban
     description:
-      "Sophisticated diplomat in his early forties. Smooth, refined British voice with an elegant upper-class accent. Charming, persuasive, intelligent, calculating, with subtle wit.",
+      "A sophisticated Indian diplomat in his mid forties. Deep, low, resonant chest voice — noticeably darker in pitch than a typical speaking voice. He speaks refined English with a cultured Indian accent, educated and understated rather than broad. Smooth and elegant, charming and persuasive, intelligent and calculating, with subtle wit.",
   },
   {
     id: "contessa",

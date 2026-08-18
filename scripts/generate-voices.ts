@@ -27,6 +27,11 @@ const args = new Set(process.argv.slice(2));
 const FORCE = args.has("--force");
 const DRY = args.has("--dry");
 const DESIGN = args.has("--voices");
+/** --redo=assassin,duke — recast those voices and re-record only their lines */
+const REDO = Array.from(args)
+  .filter((a) => a.startsWith("--redo="))
+  .flatMap((a) => a.slice("--redo=".length).split(",").map((s: string) => s.trim()))
+  .filter(Boolean);
 
 function loadEnv() {
   for (const name of [".env.local", ".env"]) {
@@ -46,23 +51,59 @@ const KEY = process.env.ELEVENLABS_API_KEY ?? "";
 const headers = { "xi-api-key": KEY, "Content-Type": "application/json" };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function api(url: string, init: RequestInit, tries = 4): Promise<Response> {
+async function api(url: string, init: RequestInit, tries = 5): Promise<Response> {
   for (let attempt = 1; attempt <= tries; attempt++) {
-    const res = await fetch(url, init);
-    if (res.ok) return res;
-    const body = await res.text();
-    // 429 is a rate limit worth waiting out; anything else should fail loudly
-    if (res.status !== 429 || attempt === tries) {
-      throw new Error(`${res.status} ${url}\n${body.slice(0, 300)}`);
+    try {
+      const res = await fetch(url, init);
+      if (res.ok) return res;
+      const body = await res.text();
+      // 429 is a rate limit worth waiting out; anything else should fail loudly
+      if (res.status !== 429 || attempt === tries) {
+        throw new Error(`${res.status} ${url}\n${body.slice(0, 300)}`);
+      }
+    } catch (error) {
+      // a dropped connection mid-run shouldn't cost the whole batch — files
+      // already written are kept, and a rerun resumes from where it stopped
+      const network = error instanceof TypeError || (error as Error).message === "fetch failed";
+      if (!network || attempt === tries) throw error;
+      console.log(`    connection lost, retrying (${attempt}/${tries})…`);
     }
     await sleep(attempt * 2000);
   }
   throw new Error("unreachable");
 }
 
-async function designCast(): Promise<Record<string, string>> {
-  const cast: Record<string, string> = {};
-  for (const voice of VOICES) {
+/**
+ * Recasting a voice: delete it upstream, forget its id, and bin its clips so
+ * the normal run redesigns it and re-records only those lines.
+ */
+async function redo(names: string[], cast: Record<string, string>) {
+  for (const id of names) {
+    if (!VOICES.some((v) => v.id === id)) throw new Error(`unknown voice "${id}"`);
+    const voiceId = cast[id];
+    if (voiceId) {
+      try {
+        await api(`${API}/voices/${voiceId}`, { method: "DELETE", headers });
+        console.log(`  deleted ${id} (${voiceId})`);
+      } catch (error) {
+        console.log(`  could not delete ${id} upstream: ${(error as Error).message.split("\n")[0]}`);
+      }
+      delete cast[id];
+    }
+    const dir = path.join(OUT, id);
+    if (fs.existsSync(dir)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      console.log(`  cleared public/audio/${id}/`);
+    }
+  }
+  fs.writeFileSync(CAST_FILE, JSON.stringify(cast, null, 2));
+}
+
+async function designCast(only?: string[]): Promise<Record<string, string>> {
+  const cast: Record<string, string> = fs.existsSync(CAST_FILE)
+    ? (JSON.parse(fs.readFileSync(CAST_FILE, "utf8")) as Record<string, string>)
+    : {};
+  for (const voice of VOICES.filter((v) => (only ? only.includes(v.id) : !cast[v.id]))) {
     console.log(`  designing ${voice.id}…`);
     const previewRes = await api(`${API}/text-to-voice/create-previews`, {
       method: "POST",
@@ -111,10 +152,9 @@ async function main() {
     }
   }
 
-  const todo = FORCE ? jobs : jobs.filter((j) => !fs.existsSync(j.file));
-  const characters = todo.reduce((n, j) => n + j.text.length, 0);
+  const pending = () => (FORCE ? jobs : jobs.filter((j) => !fs.existsSync(j.file)));
   console.log(
-    `${jobs.length} lines in the manifest, ${todo.length} to generate, ~${characters} characters.`
+    `${jobs.length} lines in the manifest, ${pending().length} to generate, ~${pending().reduce((n, j) => n + j.text.length, 0)} characters.`
   );
 
   if (DRY) {
@@ -135,12 +175,27 @@ async function main() {
     );
   }
 
-  let cast: Record<string, string> | null = fs.existsSync(CAST_FILE)
+  let cast: Record<string, string> = fs.existsSync(CAST_FILE)
     ? (JSON.parse(fs.readFileSync(CAST_FILE, "utf8")) as Record<string, string>)
-    : null;
-  if (DESIGN || !cast) {
-    console.log("Designing the cast…");
-    cast = await designCast();
+    : {};
+
+  if (REDO.length > 0) {
+    console.log(`Recasting ${REDO.join(", ")}…`);
+    await redo(REDO, cast);
+  }
+
+  const uncast = VOICES.filter((v) => !cast[v.id]).map((v) => v.id);
+  if (DESIGN || uncast.length > 0) {
+    console.log(`Designing ${DESIGN ? "the whole cast" : uncast.join(", ")}…`);
+    cast = await designCast(DESIGN ? VOICES.map((v) => v.id) : uncast);
+  }
+
+  // Recomputed here, deliberately: --redo deletes files, and taking this list
+  // before that ran meant everything it deleted was skipped and never rebuilt.
+  const todo = pending();
+  if (todo.length === 0) {
+    console.log("Nothing to generate — every line is already recorded.");
+    return;
   }
 
   let done = 0;

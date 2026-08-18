@@ -9,7 +9,7 @@
 import { initialState, reducer } from "./lib/coup/reducer";
 import { CHARACTERS } from "./lib/coup/deck";
 import type { ActionKind, Character, CoupState } from "./lib/coup/types";
-import { VARIANTS } from "./lib/coup/voice";
+import { freshCues, primeFrom, VARIANTS } from "./lib/coup/voice";
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -316,6 +316,43 @@ for (const b of BLOCKS) {
   }
   const missing = Array.from(referenced).filter((p) => !(p in VARIANTS));
   check(missing.length === 0, `resolution lines all exist; missing: ${missing.join(", ")}`);
+}
+
+
+// ---------- which cues a device should play ----------
+
+{
+  // A fresh game mounts with no cues at all. Priming from that must leave the
+  // very first line playable — treating it as history is exactly the bug that
+  // made every game's opening action silent.
+  const start = primeFrom([]);
+  check(start === 0, `a fresh game primes at zero, got ${start}`);
+  check(
+    freshCues([{ id: 1, path: "narrator/action_tax" }], start).length === 1,
+    "so the opening line still plays"
+  );
+
+  // Joining midway skips what was already said, and nothing else.
+  const history = [1, 2, 3, 4].map((id) => ({ id, path: "x" }));
+  const joined = primeFrom(history);
+  check(joined === 4, `joining primes past the history, got ${joined}`);
+  check(freshCues(history, joined).length === 0, "and replays none of it");
+  check(
+    freshCues([...history, { id: 5, path: "y" }], joined).map((c) => c.id).join() === "5",
+    "but hears the next one"
+  );
+
+  // A room pushes the same state repeatedly; a line must not repeat with it.
+  const batch = [{ id: 7, path: "a" }, { id: 8, path: "b" }];
+  const after = freshCues(batch, 6);
+  check(after.map((c) => c.id).join() === "7,8", "a batch plays in order");
+  check(freshCues(batch, after[after.length - 1].id).length === 0, "and does not repeat");
+
+  // out-of-order delivery still plays oldest first
+  check(
+    freshCues([{ id: 9, path: "b" }, { id: 8, path: "a" }], 7).map((c) => c.id).join() === "8,9",
+    "cues are sorted before playing"
+  );
 }
 
 if (failures === 0) console.log("ALL VOICE MATRIX CHECKS PASSED");

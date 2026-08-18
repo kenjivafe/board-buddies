@@ -194,6 +194,24 @@ export const VARIANTS: Record<string, number> = Object.fromEntries(
   )
 );
 
+/**
+ * Where to start listening. Called once when a device begins watching a game,
+ * so lines raised before it was looking are skipped rather than fired off at
+ * once — and a fresh game, which has no cues at all, starts from zero.
+ *
+ * The subtle part: this must be called even when there is nothing to skip.
+ * Deferring it until the first non-empty batch treats the opening line of the
+ * game as history and swallows it.
+ */
+export function primeFrom(cues: { id: number }[]): number {
+  return cues.reduce((max, c) => Math.max(max, c.id), 0);
+}
+
+/** Cues not yet heard, oldest first. */
+export function freshCues<T extends { id: number }>(cues: T[], lastHeard: number): T[] {
+  return cues.filter((c) => c.id > lastHeard).sort((a, b) => a.id - b.id);
+}
+
 /** Resolves a cue path to a concrete file, picking a variant at random. */
 export function fileFor(path: string): string | null {
   const count = VARIANTS[path];

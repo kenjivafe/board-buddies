@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AudioCue } from "@/lib/coup/types";
-import { fileFor } from "@/lib/coup/voice";
+import { fileFor, freshCues, primeFrom } from "@/lib/coup/voice";
 
 const MUTE_KEY = "coup:voice-muted";
 /** a breath between lines, so a run of them doesn't trample itself */
@@ -18,7 +18,8 @@ const GAP_MS = 220;
 export function useVoice(cues: AudioCue[] | undefined) {
   const [muted, setMuted] = useState(true);
   const [ready, setReady] = useState(false);
-  const lastPlayed = useRef(-1);
+  const lastPlayed = useRef(0);
+  const primed = useRef(false);
   const queue = useRef<string[]>([]);
   const playing = useRef(false);
   const element = useRef<HTMLAudioElement | null>(null);
@@ -67,15 +68,25 @@ export function useVoice(cues: AudioCue[] | undefined) {
   }, []);
 
   useEffect(() => {
-    if (!ready || !cues || cues.length === 0) return;
+    if (!ready) return;
+    const list = cues ?? [];
 
-    // On first sight of a game, catch up silently rather than playing history.
-    if (lastPlayed.current < 0) {
-      lastPlayed.current = Math.max(...cues.map((c) => c.id));
+    /*
+     * Prime once, on mount, even with nothing to skip.
+     *
+     * This used to wait for the first non-empty batch before priming, which
+     * meant the opening action of every game was swallowed as "history" — a
+     * fresh game mounts with no cues at all, so the first real one looked like
+     * the catch-up point. Priming here marks the line rather than the first
+     * thing to cross it.
+     */
+    if (!primed.current) {
+      primed.current = true;
+      lastPlayed.current = primeFrom(list);
       return;
     }
 
-    const fresh = cues.filter((c) => c.id > lastPlayed.current).sort((a, b) => a.id - b.id);
+    const fresh = freshCues(list, lastPlayed.current);
     if (fresh.length === 0) return;
     lastPlayed.current = fresh[fresh.length - 1].id;
 

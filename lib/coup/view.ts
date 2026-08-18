@@ -1,4 +1,5 @@
 import type {
+  Beat,
   Character,
   CoupState,
   InfluenceCard,
@@ -37,6 +38,8 @@ export interface CoupView {
   exchangeDraw: CardView[];
   dealIndex: number;
   log: LogEntry[];
+  /** every card named here was genuinely turned face up, so it is public */
+  beats: Beat[];
   winnerId: string | null;
   courtCount: number;
   /** who is holding the device; null on a shared screen */
@@ -66,6 +69,7 @@ export function viewFor(state: CoupState, viewerId: string | null): CoupView {
     reveal: state.reveal,
     dealIndex: state.dealIndex,
     log: state.log,
+    beats: state.beats,
     winnerId: state.winnerId,
     courtCount: state.court.length,
     selfId: self,

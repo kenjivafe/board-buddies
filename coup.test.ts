@@ -306,6 +306,75 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   check(back.phase === "turn", "undo restores the phase");
 }
 
+// ---------- the story of an action ----------
+
+{
+  // A proven claim is the one moment the card is genuinely face up, so that
+  // beat carries it and says it went back to the court.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "duke", "contessa");
+  const called = reducer(reducer(s, { type: "ACT", action: "tax" }), {
+    type: "CHALLENGE",
+    challengerId: "p1",
+  });
+
+  const kinds = called.beats.map((b) => b.kind);
+  check(kinds.includes("challenge"), `the call is recorded, saw ${kinds.join()}`);
+  const proven = called.beats.find((b) => b.kind === "proven");
+  check(Boolean(proven), "a proven claim is recorded");
+  check(proven?.character === "duke", `the proven card is named, saw ${proven?.character}`);
+  check(proven?.fate === "returned", "and it goes back to the court");
+
+  const settled = reducer(called, { type: "LOSE", cardId: called.players[1].cards[0].id });
+  const given = settled.beats.find((b) => b.kind === "surrender");
+  check(Boolean(given?.character), "the surrendered influence is named");
+  check(given?.fate === "spent", "and it is out of the game");
+}
+
+{
+  // A bluff reveals nothing, so no card may be attached to that beat.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "captain", "contessa");
+  const called = reducer(reducer(s, { type: "ACT", action: "tax" }), {
+    type: "CHALLENGE",
+    challengerId: "p1",
+  });
+  const bluff = called.beats.find((b) => b.kind === "bluff");
+  check(Boolean(bluff), "a caught bluff is recorded");
+  check(
+    bluff?.character === null,
+    "a bluff shows no card, because there was none to show"
+  );
+  check(
+    called.beats.every((b) => b.kind !== "proven"),
+    "and nothing is recorded as proven"
+  );
+}
+
+{
+  // Blocks are claims, not reveals — recorded, but with no card attached.
+  const s = start("Kenji", "Miko", "Ana");
+  const blocked = reducer(reducer(s, { type: "ACT", action: "foreign_aid" }), {
+    type: "BLOCK",
+    blockerId: "p2",
+    claim: "duke",
+  });
+  const block = blocked.beats.find((b) => b.kind === "block");
+  check(Boolean(block), "a block is recorded");
+  check(block?.character === null, "an unproven block shows no card");
+}
+
+{
+  // Each new action starts its own story.
+  let s = start("Kenji", "Miko", "Ana");
+  s = reducer(s, { type: "ACT", action: "foreign_aid" });
+  s = reducer(s, { type: "BLOCK", blockerId: "p1", claim: "duke" });
+  check(s.beats.length > 0, "the block left a beat");
+  s = reducer(s, { type: "ALLOW" });
+  const next = reducer(s, { type: "ACT", action: "income" });
+  check(next.beats.length === 0, "the next action clears the previous story");
+}
+
 // ---------- fuzz: random legal play must always terminate cleanly ----------
 
 {

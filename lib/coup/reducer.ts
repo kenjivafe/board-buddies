@@ -2,6 +2,7 @@ import { buildCourt, CHARACTER_INFO, shuffle } from "./deck";
 import { ACTIONS, claimText, isAlive, responders } from "./rules";
 import type {
   ActionKind,
+  Beat,
   Character,
   CoupPlayer,
   CoupState,
@@ -13,6 +14,7 @@ import type {
 export const STORAGE_KEY = "coup-v1";
 const UNDO_LIMIT = 30;
 const LOG_LIMIT = 60;
+const BEAT_LIMIT = 6;
 const STARTING_COINS = 2;
 
 export type Action =
@@ -43,6 +45,7 @@ export function initialState(): CoupState {
     exchangeDraw: [],
     dealIndex: 0,
     log: [],
+    beats: [],
     winnerId: null,
     past: [],
   };
@@ -70,6 +73,17 @@ function find(d: CoupState, id: string | null): CoupPlayer | null {
 
 function say(d: CoupState, text: string, kind: LogKind) {
   d.log = [...d.log, { text, kind }].slice(-LOG_LIMIT);
+}
+
+/** Records a step in the story of the action currently on the table. */
+function beat(
+  d: CoupState,
+  kind: Beat["kind"],
+  text: string,
+  character: Character | null = null,
+  fate: Beat["fate"] = null
+) {
+  d.beats = [...d.beats, { kind, text, character, fate }].slice(-BEAT_LIMIT);
 }
 
 function name(d: CoupState, id: string | null): string {
@@ -133,8 +147,13 @@ function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealTh
   if (!player || !card || card.revealed) return;
   card.revealed = true;
   d.reveal = null;
-  say(d, `${player.name} turns over the ${CHARACTER_INFO[card.character].name}.`, "loss");
-  if (!isAlive(player)) say(d, `${player.name} is out.`, "out");
+  const surrendered = CHARACTER_INFO[card.character].name;
+  say(d, `${player.name} turns over the ${surrendered}.`, "loss");
+  beat(d, "surrender", `${player.name} gives up the ${surrendered}.`, card.character, "spent");
+  if (!isAlive(player)) {
+    say(d, `${player.name} is out.`, "out");
+    beat(d, "out", `${player.name} is out of the game.`);
+  }
   if (checkWin(d)) return;
   if (then === "resolve") resolveAction(d);
   else advanceTurn(d);
@@ -259,10 +278,21 @@ function resolveChallenge(
       `${claimant.name} shows the ${label}. ${name(d, challengerId)} called it wrong.`,
       "challenge"
     );
+    // the card is genuinely turned face up here before going back in the deck,
+    // so this is the one moment the table gets to see it
+    beat(
+      d,
+      "proven",
+      `${claimant.name} really had the ${label}. ${name(d, challengerId)} was wrong.`,
+      claim,
+      "returned"
+    );
     swapProvenCard(d, claimantId, held.id);
     requestReveal(d, challengerId, `You lost a challenge to ${claimant.name}.`, onProve);
   } else {
     say(d, `${claimant.name} has no ${label} — caught bluffing.`, "challenge");
+    // nothing is revealed on a bluff — there was no card to show
+    beat(d, "bluff", `${claimant.name} was bluffing — no ${label}.`);
     requestReveal(d, claimantId, `${name(d, challengerId)} caught your bluff.`, onBluff);
   }
 }
@@ -330,6 +360,8 @@ export function reducer(state: CoupState, action: Action): CoupState {
       // name() falls back to "someone", so only resolve it when there really is a target
       const targetName = action.targetId ? name(d, action.targetId) : null;
       say(d, claimText(actor.name, action.action, targetName), "action");
+      // a new action on the table starts a new story
+      d.beats = [];
 
       // income and coup allow no argument at all
       if (action.action === "income" || action.action === "coup") resolveAction(d);
@@ -379,6 +411,14 @@ export function reducer(state: CoupState, action: Action): CoupState {
       if (!pending) return state;
       const d = draft(state);
       d.past = pushPast(state);
+      beat(
+        d,
+        "challenge",
+        `${name(d, action.challengerId)} calls it — ${name(
+          d,
+          state.phase === "block" ? pending.blockerId : pending.actorId
+        )} must show the card.`
+      );
       if (state.phase === "reaction") {
         if (!pending.claim) return state;
         // claim holds → action goes ahead; bluff → action dies
@@ -413,6 +453,11 @@ export function reducer(state: CoupState, action: Action): CoupState {
         d,
         `${name(d, action.blockerId)} blocks with the ${CHARACTER_INFO[action.claim].name}.`,
         "block"
+      );
+      beat(
+        d,
+        "block",
+        `${name(d, action.blockerId)} blocks, claiming the ${CHARACTER_INFO[action.claim].name}.`
       );
       d.phase = "block";
       return d;

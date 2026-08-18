@@ -17,6 +17,8 @@ import { known, type CoupView, type PlayerView } from "@/lib/coup/view";
 import { CardFace } from "./Cards";
 import { PassGate, PeekHand } from "./PassGate";
 import Table, { Feed } from "./Table";
+import Beats from "./Beats";
+import Reference from "./Reference";
 
 /**
  * One screen for both ways of playing. On a shared phone the view is
@@ -32,6 +34,7 @@ export default function Play({
   dispatch: React.Dispatch<Action>;
   canUndo?: boolean;
 }) {
+  const [showRules, setShowRules] = useState(false);
   const actor = state.players[state.turnIndex];
   const marked = state.pending?.targetId ? [state.pending.targetId] : undefined;
 
@@ -41,19 +44,27 @@ export default function Play({
         <span className="eyebrow">
           {state.phase === "turn" ? `${actor?.name}'s move` : "The table decides"}
         </span>
-        {canUndo && (
-          <button
-            className="icon-btn"
-            onClick={() => dispatch({ type: "UNDO" })}
-            aria-label="Undo the last step"
-          >
-            ↶
+        <span className="play-head-tools">
+          <button className="pill-btn" onClick={() => setShowRules(true)}>
+            Cheat sheet
           </button>
-        )}
+          {canUndo && (
+            <button
+              className="icon-btn"
+              onClick={() => dispatch({ type: "UNDO" })}
+              aria-label="Undo the last step"
+            >
+              ↶
+            </button>
+          )}
+        </span>
       </header>
 
       <Table state={state} highlight={marked} />
+      <Beats beats={state.beats} />
       <Feed state={state} />
+
+      {showRules && <Reference onClose={() => setShowRules(false)} />}
 
       <div className="panel">
         {state.phase === "turn" && <TurnPanel state={state} dispatch={dispatch} />}

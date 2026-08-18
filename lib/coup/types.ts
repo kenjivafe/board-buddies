@@ -64,6 +64,22 @@ export interface RevealRequest {
   then: RevealThen;
 }
 
+/**
+ * A step in the story of the action currently on the table: who blocked, who
+ * called it, whether the claim held, and which influence was handed over.
+ *
+ * `character` is set ONLY where a card was genuinely turned face up — a proven
+ * claim or a surrendered influence. A claim on its own never shows art, since
+ * showing the card for something nobody has proved would read as evidence.
+ */
+export interface Beat {
+  kind: "block" | "challenge" | "proven" | "bluff" | "surrender" | "out";
+  text: string;
+  character: Character | null;
+  /** where that card went: back into the court, or face up out of the game */
+  fate: "returned" | "spent" | null;
+}
+
 export type LogKind = "turn" | "action" | "challenge" | "block" | "loss" | "out";
 
 export interface LogEntry {
@@ -84,6 +100,8 @@ export interface CoupState {
   /** seat currently peeking during the deal */
   dealIndex: number;
   log: LogEntry[];
+  /** the story of the action on the table, cleared when the next one starts */
+  beats: Beat[];
   winnerId: string | null;
   /** snapshots for undo */
   past: string[];

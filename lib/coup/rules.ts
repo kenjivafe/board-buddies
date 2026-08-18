@@ -14,6 +14,8 @@ export interface ActionInfo {
   /** foreign aid can be blocked by anyone; assassination and stealing only by the target */
   blockableBy: "any" | "target";
   blurb: string;
+  /** wording for the reference sheet, closer to the printed card */
+  sheet: string;
 }
 
 export const ACTIONS: Record<ActionKind, ActionInfo> = {
@@ -25,6 +27,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: [],
     blockableBy: "any",
     blurb: "Take 1 coin. Nobody can touch it.",
+    sheet: "Take 1 coin.",
   },
   foreign_aid: {
     label: "Foreign Aid",
@@ -34,6 +37,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: ["duke"],
     blockableBy: "any",
     blurb: "Take 2 coins. Any Duke can block it.",
+    sheet: "Take 2 coins.",
   },
   coup: {
     label: "Coup",
@@ -43,6 +47,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: [],
     blockableBy: "any",
     blurb: "Pay 7. They lose an influence, no argument.",
+    sheet: "Pay 7 coins, choose a player to lose an influence.",
   },
   tax: {
     label: "Tax",
@@ -52,6 +57,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: [],
     blockableBy: "any",
     blurb: "Take 3 coins as the Duke.",
+    sheet: "Take 3 coins.",
   },
   assassinate: {
     label: "Assassinate",
@@ -61,6 +67,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: ["contessa"],
     blockableBy: "target",
     blurb: "Pay 3. They lose an influence unless a Contessa stops you.",
+    sheet: "Pay 3 coins, choose a player to lose an influence.",
   },
   steal: {
     label: "Steal",
@@ -70,6 +77,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: ["captain", "ambassador"],
     blockableBy: "target",
     blurb: "Take 2 coins from a player as the Captain.",
+    sheet: "Take 2 coins from another player.",
   },
   exchange: {
     label: "Exchange",
@@ -79,6 +87,7 @@ export const ACTIONS: Record<ActionKind, ActionInfo> = {
     blockedBy: [],
     blockableBy: "any",
     blurb: "Draw 2 from the court and keep the hand you like.",
+    sheet: "Take 2 cards, return 2 cards to the court deck.",
   },
 };
 

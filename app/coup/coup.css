@@ -656,6 +656,224 @@ button.card-slot:active .coup-card {
   color: var(--muted);
 }
 
+.play-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pill-btn {
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--stock-2);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pill-btn:hover {
+  color: var(--bone);
+  border-color: color-mix(in srgb, var(--stock) 45%, transparent);
+}
+
+/* ---------- what just happened ---------- */
+
+.beats {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.beat {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 9px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--stock-2);
+  background: var(--surface);
+}
+
+.beat.kind-challenge {
+  border-left-color: var(--hot);
+}
+
+.beat.kind-proven {
+  border-left-color: var(--ambassador);
+}
+
+.beat.kind-bluff,
+.beat.kind-out {
+  border-left-color: var(--contessa);
+}
+
+/* a card only appears here when one was genuinely turned face up */
+.beat-card {
+  flex: none;
+  width: 62px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.beat-card .card-slot {
+  max-width: none;
+}
+
+.beat-fate {
+  font-family: var(--display);
+  font-size: 8px;
+  font-weight: 700;
+  font-stretch: 84%;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.beat-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-family: var(--display);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.beat.kind-challenge .beat-mark {
+  color: var(--hot);
+  border-color: color-mix(in srgb, var(--hot) 50%, transparent);
+}
+
+.beat-text {
+  flex: 1;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+/* ---------- cheat sheet ---------- */
+
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 4vh 14px calc(14px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  background: rgba(12, 10, 12, 0.82);
+  backdrop-filter: blur(3px);
+}
+
+.sheet-card {
+  width: 100%;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ref-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ref-row {
+  --c: var(--stock-2);
+  padding: 9px 11px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--c);
+  background: var(--surface);
+}
+
+.ref-character {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 800;
+  font-stretch: 82%;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c);
+}
+
+.ref-sigil {
+  font-size: 11px;
+}
+
+.ref-body {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.ref-title {
+  font-family: var(--display);
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ref-detail {
+  color: var(--text-dim);
+}
+
+.ref-counter {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-style: italic;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.ref-note {
+  padding: 10px;
+  text-align: center;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--hot) 45%, transparent);
+  background: rgba(230, 48, 74, 0.12);
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 800;
+  font-stretch: 80%;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 /* ---------- the feed ---------- */
 
 .feed {

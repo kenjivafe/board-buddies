@@ -221,9 +221,12 @@ const verbFor = (kind: ActionKind) => (kind === "assassinate" ? "assassination" 
  * action and the narrator stays out of it.
  */
 function resolveCue(d: CoupState) {
-  if (d.pending && !d.pending.claimProven) {
-    cue(d, `narrator/resolve_${verbFor(d.pending.action)}`);
-  }
+  const pending = d.pending;
+  if (!pending || pending.claimProven) return;
+  // Income alone can be neither blocked, challenged nor delayed, so the claim
+  // line is the whole event and there is no second beat to narrate.
+  if (pending.action === "income") return;
+  cue(d, `narrator/resolve_${verbFor(pending.action)}`);
 }
 
 /** Carries out the pending action now that nobody has stopped it. */

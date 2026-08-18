@@ -185,20 +185,34 @@ for (const c of CASES) {
   }
 }
 
-// ---------- actions with no claim always get their resolution ----------
+// ---------- actions with no claim ----------
 
-for (const [action, stem] of [
-  ["income", "income"],
-  ["coup", "coup"],
-] as const) {
+{
+  // A coup cannot be stopped, but its effect waits on the victim, so the
+  // narrator still marks the moment it lands.
   let s = game();
   s = JSON.parse(JSON.stringify(s));
   s.players[0].coins = 7;
-  const done = settle(reducer(s, { type: "ACT", action, targetId: action === "coup" ? "p1" : undefined }));
+  const couped = settle(reducer(s, { type: "ACT", action: "coup", targetId: "p1" }));
   check(
-    paths(done).includes(`narrator/resolve_${stem}`),
-    `${action}: the narrator closes it — saw ${paths(done).join()}`
+    paths(couped).includes("narrator/resolve_coup"),
+    `coup: the narrator marks the landing — saw ${paths(couped).join()}`
   );
+
+  // Income is the one action nothing can interrupt and nothing waits on, so
+  // the claim line is the whole event.
+  const taken = settle(reducer(game(), { type: "ACT", action: "income" }));
+  const heard = paths(taken);
+  check(heard.join() === "narrator/action_income", `income says one thing — saw ${heard.join()}`);
+  check(
+    !heard.some((p) => p.startsWith("narrator/resolve_")),
+    "income has no resolution line to play"
+  );
+  check(
+    VARIANTS["narrator/action_income"] === 2,
+    `and keeps both readings as variants, saw ${VARIANTS["narrator/action_income"]}`
+  );
+  check(!("narrator/resolve_income" in VARIANTS), "with no orphaned resolution stem");
 }
 
 // ---------- blocks ----------
@@ -311,7 +325,8 @@ for (const b of BLOCKS) {
 {
   const referenced = new Set<string>();
   for (const c of CASES) referenced.add(`narrator/resolve_${c.stem}`);
-  for (const stem of ["income", "coup", "foreign_aid"]) {
+  // income deliberately absent — it has no resolution line
+  for (const stem of ["coup", "foreign_aid"]) {
     referenced.add(`narrator/resolve_${stem}`);
   }
   const missing = Array.from(referenced).filter((p) => !(p in VARIANTS));

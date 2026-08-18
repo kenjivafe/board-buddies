@@ -65,7 +65,9 @@ export const LINES: Record<VoiceId, VoiceLines> = {
   narrator: {
     // An action is announced without naming the influence claimed for it — the
     // card is still face down and the claim may well be a lie.
-    action_income: ["Income is taken."],
+    // Income is the one action nothing can interrupt and nothing waits on, so
+    // it has no resolution line — both readings are just variants of the claim.
+    action_income: ["Income is taken.", "Income is collected."],
     action_foreign_aid: ["Foreign Aid is requested."],
     action_tax: ["Tax is claimed."],
     action_steal: ["A steal is attempted."],
@@ -76,7 +78,6 @@ export const LINES: Record<VoiceId, VoiceLines> = {
     // down whether it was real or not, so the narrator closes the loop instead.
     // Never played when a challenge proved the claim — the character has
     // already spoken for the action itself.
-    resolve_income: ["Income is collected."],
     resolve_foreign_aid: ["Foreign Aid is received."],
     resolve_tax: ["The tax is collected."],
     resolve_steal: ["The steal succeeds."],

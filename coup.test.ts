@@ -2,6 +2,7 @@ import { CHARACTERS } from "./lib/coup/deck";
 import { initialState, reducer, type Action } from "./lib/coup/reducer";
 import { ACTIONS, isAlive, legalActions, eligibleBlockers, othersAlive } from "./lib/coup/rules";
 import type { CoupState, InfluenceCard } from "./lib/coup/types";
+import { VARIANTS } from "./lib/coup/voice";
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -435,6 +436,182 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   s = reducer(s, { type: "ALLOW" });
   const next = reducer(s, { type: "ACT", action: "income" });
   check(next.beats.length === 0, "the next action clears the previous story");
+}
+
+// ---------- voice cues ----------
+
+{
+  // The narrator announces an action without naming the influence claimed for
+  // it — the card is face down and the claim may be a lie.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "captain", "contessa");
+  const taxed = reducer(s, { type: "ACT", action: "tax" });
+  const paths = taxed.cues.map((c) => c.path);
+  check(paths.join() === "narrator/action_tax", `narrator announces tax, saw ${paths.join()}`);
+  check(
+    !paths.some((p) => CHARACTERS.some((c) => p.startsWith(`${c}/`))),
+    "no character speaks for an unproven claim"
+  );
+
+  // and if nobody challenges, no character ever speaks
+  const allowed = reducer(taxed, { type: "ALLOW" });
+  check(
+    !allowed.cues.some((p) => CHARACTERS.some((c) => p.path.startsWith(`${c}/`))),
+    "an unchallenged bluff stays silent"
+  );
+}
+
+{
+  // Proven: the card is face up, so the character speaks — the challenge line
+  // first, then the line for what it was claiming to do.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "duke", "contessa");
+  const shown = reducer(reducer(s, { type: "ACT", action: "tax" }), {
+    type: "CHALLENGE",
+    challengerId: "p1",
+  });
+  check(
+    shown.cues.map((c) => c.path).includes("narrator/challenge"),
+    "the challenge is announced"
+  );
+  const proved = reducer(shown, { type: "REVEAL" });
+  const paths = proved.cues.map((c) => c.path);
+  check(paths.includes("duke/challenge_reveal"), `the Duke answers, saw ${paths.join()}`);
+  check(paths.includes("duke/action_tax"), "and then speaks for the tax");
+  check(
+    paths.indexOf("duke/challenge_reveal") < paths.indexOf("duke/action_tax"),
+    "in that order"
+  );
+}
+
+{
+  // Conceding never turns the claimed card over, so that influence must stay
+  // silent — only the narrator, and then whatever was actually given up.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "duke", "contessa");
+  const conceded = reducer(
+    reducer(reducer(s, { type: "ACT", action: "tax" }), {
+      type: "CHALLENGE",
+      challengerId: "p1",
+    }),
+    { type: "REVEAL", concede: true }
+  );
+  const paths = conceded.cues.map((c) => c.path);
+  check(paths.includes("narrator/concede"), `the narrator covers a concession, saw ${paths.join()}`);
+  check(
+    !paths.includes("duke/challenge_reveal"),
+    "the conceded Duke does not speak, having never been shown"
+  );
+  check(conceded.reveal?.playerId === "p0", "and the conceder gives up an influence");
+  check(conceded.players[0].coins === 2, "a conceded claim collects nothing");
+}
+
+{
+  // Proving a card you do not hold is legal theatre, and reads as a false claim
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "captain", "contessa");
+  const caught = reducer(
+    reducer(reducer(s, { type: "ACT", action: "tax" }), {
+      type: "CHALLENGE",
+      challengerId: "p1",
+    }),
+    { type: "REVEAL" }
+  );
+  const paths = caught.cues.map((c) => c.path);
+  check(paths.includes("narrator/false_claim"), `a false claim is narrated, saw ${paths.join()}`);
+  check(!paths.includes("duke/challenge_reveal"), "and no Duke speaks, there being none");
+}
+
+{
+  // Losing an influence turns it face up, so it may speak — and its last one
+  // is a different line.
+  let s = start("Kenji", "Miko");
+  s = JSON.parse(JSON.stringify(s));
+  s.players[0].coins = 7;
+  s.players[1].cards = [
+    { id: "b0", character: "captain", revealed: false },
+    { id: "b1", character: "contessa", revealed: false },
+  ];
+  const couped = reducer(s, { type: "ACT", action: "coup", targetId: "p1" });
+  const wounded = reducer(couped, { type: "LOSE", cardId: "b0" });
+  check(
+    wounded.cues.some((c) => c.path === "captain/loss"),
+    `the surrendered Captain speaks, saw ${wounded.cues.map((c) => c.path).join()}`
+  );
+  check(
+    !wounded.cues.some((c) => c.path === "captain/final_loss"),
+    "but not its final line, with one influence left"
+  );
+
+  let last = JSON.parse(JSON.stringify(wounded)) as CoupState;
+  last.players[0].coins = 7;
+  last.turnIndex = 0;
+  last.phase = "turn";
+  const finished = reducer(last, { type: "ACT", action: "coup", targetId: "p1" });
+  check(
+    finished.cues.some((c) => c.path === "contessa/final_loss"),
+    `the last influence gets the final line, saw ${finished.cues.map((c) => c.path).join()}`
+  );
+}
+
+{
+  // Every cue path must exist in the manifest, or it plays nothing.
+  const seen = new Set<string>();
+  for (let seed = 0; seed < 60; seed++) {
+    let s = start("A", "B", "C");
+    let steps = 0;
+    while (s.phase !== "ended" && steps++ < 400) {
+      s.cues.forEach((c) => seen.add(c.path));
+      const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
+      let move: Action;
+      if (s.phase === "turn") {
+        const kind = pick(legalActions(s));
+        const info = ACTIONS[kind];
+        const targets = othersAlive(s, s.players[s.turnIndex].id);
+        if (info.needsTarget && targets.length === 0) break;
+        move = info.needsTarget
+          ? { type: "ACT", action: kind, targetId: pick(targets).id }
+          : { type: "ACT", action: kind };
+      } else if (s.phase === "reaction") {
+        const opts: Action[] = [{ type: "ALLOW" }];
+        if (s.pending?.claim) {
+          for (const p of othersAlive(s, s.pending.actorId)) {
+            opts.push({ type: "CHALLENGE", challengerId: p.id });
+          }
+        }
+        for (const b of eligibleBlockers(s)) {
+          for (const claim of ACTIONS[s.pending!.action].blockedBy) {
+            opts.push({ type: "BLOCK", blockerId: b.id, claim });
+          }
+        }
+        move = pick(opts);
+      } else if (s.phase === "block") {
+        const opts: Action[] = [{ type: "ALLOW" }];
+        for (const p of othersAlive(s, s.pending!.blockerId)) {
+          opts.push({ type: "CHALLENGE", challengerId: p.id });
+        }
+        move = pick(opts);
+      } else if (s.phase === "showdown") {
+        move = { type: "REVEAL", concede: Math.random() < 0.3 };
+      } else if (s.phase === "reveal") {
+        const who = s.players.find((p) => p.id === s.reveal!.playerId)!;
+        move = { type: "LOSE", cardId: pick(who.cards.filter((c) => !c.revealed)).id };
+      } else if (s.phase === "exchange") {
+        const actor = s.players.find((p) => p.id === s.pending!.actorId)!;
+        const live = actor.cards.filter((c) => !c.revealed);
+        const pool = [...live, ...s.exchangeDraw];
+        move = { type: "EXCHANGE_KEEP", cardIds: pool.slice(0, live.length).map((c) => c.id) };
+      } else break;
+      const next = reducer(s, move);
+      if (next === s) break;
+      s = next;
+    }
+    s.cues.forEach((c) => seen.add(c.path));
+  }
+
+  const missing = Array.from(seen).filter((p) => !(p in VARIANTS));
+  check(missing.length === 0, `every cue has recorded lines; missing: ${missing.join(", ")}`);
+  check(seen.size > 12, `the sweep exercised a good spread of cues, saw ${seen.size}`);
 }
 
 // ---------- fuzz: random legal play must always terminate cleanly ----------

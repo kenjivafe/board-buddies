@@ -91,11 +91,26 @@ export interface RevealRequest {
  * showing the card for something nobody has proved would read as evidence.
  */
 export interface Beat {
-  kind: "block" | "challenge" | "proven" | "bluff" | "surrender" | "out";
+  kind: "block" | "challenge" | "proven" | "bluff" | "concede" | "surrender" | "out";
   text: string;
   character: Character | null;
   /** where that card went: back into the court, or face up out of the game */
   fate: "returned" | "spent" | null;
+}
+
+/**
+ * A voice line to play, named by its folder and stem under /audio — the client
+ * picks a variant. Ids are monotonic so a client can play each cue exactly
+ * once, however many times the state is pushed to it.
+ *
+ * Cues are emitted only for things already public. A character is never named
+ * by a cue until that influence has actually been turned face up, so the audio
+ * cannot betray a hand the way a claim-based cue would.
+ */
+export interface AudioCue {
+  id: number;
+  /** e.g. "narrator/action_tax" or "duke/challenge_reveal" */
+  path: string;
 }
 
 export type LogKind = "turn" | "action" | "challenge" | "block" | "loss" | "out";
@@ -122,6 +137,10 @@ export interface CoupState {
   log: LogEntry[];
   /** the story of the action on the table, cleared when the next one starts */
   beats: Beat[];
+  /** voice lines raised by the last step, oldest first */
+  cues: AudioCue[];
+  /** monotonic, so clients can tell a new cue from a redelivered one */
+  cueSeq: number;
   winnerId: string | null;
   /** snapshots for undo */
   past: string[];

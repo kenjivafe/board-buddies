@@ -8,6 +8,7 @@ import type {
   CoupState,
   InfluenceCard,
   LogKind,
+  AudioCue,
   RevealThen,
   Showdown,
 } from "./types";
@@ -16,6 +17,7 @@ export const STORAGE_KEY = "coup-v1";
 const UNDO_LIMIT = 30;
 const LOG_LIMIT = 60;
 const BEAT_LIMIT = 6;
+const CUE_LIMIT = 8;
 const STARTING_COINS = 2;
 
 export type Action =
@@ -27,8 +29,8 @@ export type Action =
   /** one responder declines to object; the action waits for the rest */
   | { type: "PASS"; playerId: string }
   | { type: "CHALLENGE"; challengerId: string }
-  /** the challenged player turns their card over, or admits the bluff */
-  | { type: "REVEAL" }
+  /** the challenged player answers: prove the claim, or concede it */
+  | { type: "REVEAL"; concede?: boolean }
   | { type: "BLOCK"; blockerId: string; claim: Character }
   | { type: "LOSE"; cardId: string }
   | { type: "EXCHANGE_KEEP"; cardIds: string[] }
@@ -50,6 +52,8 @@ export function initialState(): CoupState {
     dealIndex: 0,
     log: [],
     beats: [],
+    cues: [],
+    cueSeq: 0,
     winnerId: null,
     past: [],
   };
@@ -88,6 +92,15 @@ function beat(
   fate: Beat["fate"] = null
 ) {
   d.beats = [...d.beats, { kind, text, character, fate }].slice(-BEAT_LIMIT);
+}
+
+/**
+ * Raise a voice line. Only ever called for something already public — see the
+ * note on AudioCue. Nothing here may name a character whose card is still down.
+ */
+function cue(d: CoupState, path: string) {
+  d.cueSeq += 1;
+  d.cues = [...d.cues, { id: d.cueSeq, path }].slice(-CUE_LIMIT);
 }
 
 function name(d: CoupState, id: string | null): string {
@@ -156,6 +169,9 @@ function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealTh
   const surrendered = CHARACTER_INFO[card.character].name;
   say(d, `${player.name} turns over the ${surrendered}.`, "loss");
   beat(d, "surrender", `${player.name} gives up the ${surrendered}.`, card.character, "spent");
+  // the card is face up now, so it is allowed to speak — and its last breath
+  // is a different line from merely being wounded
+  cue(d, `${card.character}/${isAlive(player) ? "loss" : "final_loss"}`);
   if (!isAlive(player)) {
     say(d, `${player.name} is out.`, "out");
     beat(d, "out", `${player.name} is out of the game.`);
@@ -262,7 +278,7 @@ function resolveAction(d: CoupState) {
  * pays. `onProve` / `onBluff` decide whether the original action still goes
  * ahead, which differs between challenging an actor and challenging a blocker.
  */
-function settleShowdown(d: CoupState) {
+function settleShowdown(d: CoupState, conceded: boolean) {
   const showdown = d.showdown;
   if (!showdown) {
     advanceTurn(d);
@@ -279,6 +295,17 @@ function settleShowdown(d: CoupState) {
   const held = claimant.cards.find((c) => !c.revealed && c.character === claim);
   const label = CHARACTER_INFO[claim].name;
 
+  // Conceding never turns the claimed card over, so that influence stays face
+  // down and must not speak — the narrator covers it, and whatever they
+  // actually give up gets its own line.
+  if (conceded) {
+    say(d, `${claimant.name} concedes the ${label}.`, "challenge");
+    beat(d, "concede", `${claimant.name} concedes — no ${label} shown.`);
+    cue(d, "narrator/concede");
+    requestReveal(d, claimantId, `You conceded to ${name(d, challengerId)}.`, onBluff);
+    return;
+  }
+
   if (held) {
     say(
       d,
@@ -294,12 +321,23 @@ function settleShowdown(d: CoupState) {
       claim,
       "returned"
     );
+    // face up at last, so the character may speak: first about the challenge,
+    // then about whatever it was claiming to do
+    cue(d, `${claim}/challenge_reveal`);
+    const pending = d.pending;
+    if (pending?.blockerId === claimantId && pending.blockClaim === claim) {
+      cue(d, `${claim}/block_${pending.action}`);
+    } else if (pending?.actorId === claimantId) {
+      const verb = pending.action === "assassinate" ? "assassination" : pending.action;
+      cue(d, `${claim}/action_${verb}`);
+    }
     swapProvenCard(d, claimantId, held.id);
     requestReveal(d, challengerId, `You lost a challenge to ${claimant.name}.`, onProve);
   } else {
     say(d, `${claimant.name} has no ${label} — caught bluffing.`, "challenge");
     // nothing is revealed on a bluff — there was no card to show
     beat(d, "bluff", `${claimant.name} was bluffing — no ${label}.`);
+    cue(d, "narrator/false_claim");
     requestReveal(d, claimantId, `${name(d, challengerId)} caught your bluff.`, onBluff);
   }
 }
@@ -369,6 +407,10 @@ export function reducer(state: CoupState, action: Action): CoupState {
       say(d, claimText(actor.name, action.action, targetName), "action");
       // a new action on the table starts a new story
       d.beats = [];
+      d.cues = [];
+      // the narrator announces the action without naming the claimed influence,
+      // which is still face down and may well be a lie
+      cue(d, `narrator/action_${action.action === "assassinate" ? "assassination" : action.action}`);
 
       // income and coup allow no argument at all
       if (action.action === "income" || action.action === "coup") resolveAction(d);
@@ -452,6 +494,7 @@ export function reducer(state: CoupState, action: Action): CoupState {
       d.showdown = { claimantId, challengerId: action.challengerId, claim, onProve, onBluff };
       d.phase = "showdown";
       say(d, `${name(d, action.challengerId)} challenges ${name(d, claimantId)}.`, "challenge");
+      cue(d, "narrator/challenge");
       beat(
         d,
         "challenge",
@@ -465,7 +508,7 @@ export function reducer(state: CoupState, action: Action): CoupState {
       if (state.phase !== "showdown" || !state.showdown) return state;
       const d = draft(state);
       d.past = pushPast(state);
-      settleShowdown(d);
+      settleShowdown(d, Boolean(action.concede));
       return d;
     }
 

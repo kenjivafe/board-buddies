@@ -19,6 +19,7 @@ import { PassGate, PeekHand } from "./PassGate";
 import Table, { Feed } from "./Table";
 import Beats from "./Beats";
 import Reference from "./Reference";
+import { useVoice } from "./useVoice";
 
 /**
  * One screen for both ways of playing. On a shared phone the view is
@@ -35,6 +36,7 @@ export default function Play({
   canUndo?: boolean;
 }) {
   const [showRules, setShowRules] = useState(false);
+  const voice = useVoice(state.cues);
   const actor = state.players[state.turnIndex];
   const marked = state.pending?.targetId ? [state.pending.targetId] : undefined;
 
@@ -45,6 +47,16 @@ export default function Play({
           {state.phase === "turn" ? `${actor?.name}'s move` : "The table decides"}
         </span>
         <span className="play-head-tools">
+          {voice.ready && (
+            <button
+              className="pill-btn"
+              onClick={voice.toggle}
+              aria-pressed={!voice.muted}
+              aria-label={voice.muted ? "Turn voices on" : "Turn voices off"}
+            >
+              {voice.muted ? "Voices off" : "Voices on"}
+            </button>
+          )}
           <button className="pill-btn" onClick={() => setShowRules(true)}>
             Cheat sheet
           </button>
@@ -430,41 +442,30 @@ function ShowdownPanel({ state, dispatch }: { state: CoupView; dispatch: React.D
     (c) => !c.revealed && c.character === showdown.claim
   );
 
-  const answer = (
+  // Both ways out are always offered, so the buttons themselves give nothing
+  // away to anyone watching a shared screen — and proving a card you do not
+  // hold is a legal, if doomed, piece of theatre.
+  return (
     <div className="showdown">
       <p className="choose-title">
         {challenger} called your {label}.
       </p>
+      <button className="btn btn-primary" onClick={() => dispatch({ type: "REVEAL" })}>
+        Prove it — show the {label}
+      </button>
       <button
-        className={`btn ${holds ? "btn-primary" : "btn-danger"}`}
-        onClick={() => dispatch({ type: "REVEAL" })}
+        className="btn btn-danger"
+        onClick={() => dispatch({ type: "REVEAL", concede: true })}
       >
-        {holds ? `Show the ${label}` : "Admit it — I was bluffing"}
+        Concede the claim
       </button>
       <p className="hint">
         {holds
-          ? "It goes back to the court and you draw a replacement."
-          : "You'll choose which influence to give up."}
+          ? `You do hold the ${label}. Proving it costs ${challenger} an influence.`
+          : `You don't hold the ${label} — either way you lose an influence.`}
       </p>
     </div>
   );
-
-  // On a shared phone the label alone would give the answer away to everyone
-  // watching, so it waits behind the gate until the right person is holding it.
-  if (state.omniscient) {
-    return (
-      <PassGate
-        key={claimant.id}
-        name={claimant.name}
-        note={`${challenger} challenged your ${label}.`}
-        cta={`I'm ${claimant.name}`}
-      >
-        {answer}
-      </PassGate>
-    );
-  }
-
-  return answer;
 }
 
 // ---------- give up an influence ----------

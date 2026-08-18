@@ -301,6 +301,69 @@ function coupGame(...names: string[]): CoupState {
 }
 
 // ============================================================
+// answering a challenge is the challenged player's alone
+// ============================================================
+
+{
+  const opened = reducer(coupGame("Ana", "Ben", "Cleo"), { type: "ACT", action: "tax" });
+  const called = reducer(opened, { type: "CHALLENGE", challengerId: "p1" });
+  check(called.phase === "showdown", "a challenge parks on a showdown");
+
+  denies(
+    () => coup.apply(called, { type: "REVEAL" }, "p1", false),
+    "the challenger cannot answer the challenge they made"
+  );
+  denies(
+    () => coup.apply(called, { type: "REVEAL" }, "p2", true),
+    "a bystander cannot answer it either"
+  );
+  allows(
+    () => coup.apply(called, { type: "REVEAL" }, "p0", false),
+    "the challenged player answers their own"
+  );
+}
+
+{
+  // The showdown must not betray the answer. Build the same challenge twice —
+  // once where the claim is true, once where it is a bluff — and check that a
+  // watcher's view of the two is byte-for-byte identical.
+  // one shared base, so the only difference between the two is the answer —
+  // dealing twice would vary the watcher's own hand and prove nothing
+  const base = coupGame("Ana", "Ben", "Cleo");
+  const build = (holds: boolean) => {
+    const s: CoupState = JSON.parse(JSON.stringify(base));
+    s.players[0].cards = [
+      { id: "x0", character: holds ? "duke" : "captain", revealed: false },
+      { id: "x1", character: "contessa", revealed: false },
+    ];
+    return reducer(reducer(s, { type: "ACT", action: "tax" }), {
+      type: "CHALLENGE",
+      challengerId: "p1",
+    });
+  };
+
+  const truthful = viewFor(build(true), "p1");
+  const bluffing = viewFor(build(false), "p1");
+  check(
+    JSON.stringify(truthful.showdown) === JSON.stringify(bluffing.showdown),
+    "the showdown reads the same whether or not the claim is true"
+  );
+  check(
+    JSON.stringify(truthful) === JSON.stringify(bluffing),
+    "and so does the whole watcher view — nothing leaks the answer"
+  );
+  check(truthful.showdown?.claim === "duke", "the claim itself is public, as it should be");
+
+  // the claimant's own device can work it out, because it holds their hand
+  const own = viewFor(build(true), "p0");
+  const ownCards = own.players.find((p) => p.id === "p0")!.cards;
+  check(
+    ownCards.some((c) => c.character === "duke"),
+    "the challenged player can see their own answer"
+  );
+}
+
+// ============================================================
 // restarting must never strand a room
 // ============================================================
 

@@ -33,6 +33,8 @@ export type Phase =
   | "reaction"
   /** the table may challenge the blocker's claim */
   | "block"
+  /** a challenge is on the table; the challenged player must turn a card over */
+  | "showdown"
   /** someone must surrender an influence and choose which */
   | "reveal"
   /** ambassador is picking which cards to keep */
@@ -57,6 +59,22 @@ export interface Pending {
 
 /** What happens once the surrendered influence is chosen. */
 export type RevealThen = "next" | "resolve";
+
+/**
+ * A challenge waiting on the challenged player to answer it.
+ *
+ * Deliberately carries no hint of whether they actually hold the card. That is
+ * theirs to reveal, and their own device works it out from their own hand — so
+ * nothing here spoils the outcome for anyone watching.
+ */
+export interface Showdown {
+  claimantId: string;
+  challengerId: string;
+  claim: Character;
+  /** what becomes of the original action once this settles */
+  onProve: RevealThen;
+  onBluff: RevealThen;
+}
 
 export interface RevealRequest {
   playerId: string;
@@ -95,6 +113,8 @@ export interface CoupState {
   turnIndex: number;
   pending: Pending | null;
   reveal: RevealRequest | null;
+  /** a challenge awaiting the challenged player's reveal */
+  showdown: Showdown | null;
   /** the two cards drawn for an exchange, in hand until the player keeps */
   exchangeDraw: InfluenceCard[];
   /** seat currently peeking during the deal */

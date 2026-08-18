@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { initialState, reducer, STORAGE_KEY } from "@/lib/coup/reducer";
-import type { CoupState } from "@/lib/coup/types";
+import type { CoupState, Phase } from "@/lib/coup/types";
 import { ALL_SEEING, viewFor } from "@/lib/coup/view";
 import Setup from "./Setup";
 import Deal from "./Deal";
 import Play from "./Play";
 import End from "./End";
 
-const LIVE_PHASES = ["deal", "turn", "reaction", "block", "reveal", "exchange"];
+const LIVE_PHASES: Phase[] = ["deal", "turn", "reaction", "block", "showdown", "reveal", "exchange"];
+
+/** Phases that Play renders — derived, so adding one can't silently blank the screen. */
+const IN_PLAY: Phase[] = LIVE_PHASES.filter((p) => p !== "deal");
 
 export default function Game() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
@@ -84,12 +87,12 @@ export default function Game() {
     <main className="shell">
       {state.phase === "setup" && <Setup players={state.players} dispatch={dispatch} />}
       {state.phase === "deal" && <Deal state={view} dispatch={dispatch} />}
-      {(state.phase === "turn" ||
-        state.phase === "reaction" ||
-        state.phase === "block" ||
-        state.phase === "reveal" ||
-        state.phase === "exchange") && <Play state={view} dispatch={dispatch} canUndo={state.past.length > 0} />}
       {state.phase === "ended" && <End state={view} dispatch={dispatch} />}
+      {/* Everything else is a phase of live play. Listing them instead meant a
+          new phase rendered a blank screen until someone noticed. */}
+      {!IN_PLAY.includes(state.phase) ? null : (
+        <Play state={view} dispatch={dispatch} canUndo={state.past.length > 0} />
+      )}
     </main>
   );
 }

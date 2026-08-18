@@ -1052,6 +1052,29 @@ button.card-slot:active .coup-card {
   gap: 7px;
 }
 
+/* ---------- answering a challenge ---------- */
+
+.showdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 14px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--hot) 40%, transparent);
+  border-left: 3px solid var(--hot);
+  background: rgba(230, 48, 74, 0.09);
+}
+
+.showdown .choose-title {
+  font-family: var(--display);
+  font-size: 16px;
+  font-weight: 800;
+  font-stretch: 78%;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
 /* ---------- pickers ---------- */
 
 .picker,

@@ -92,6 +92,12 @@ const coup: Adapter = {
         if (action.blockerId !== actorId) deny("You can only block for yourself.");
         break;
 
+      case "REVEAL":
+        if (state.showdown?.claimantId !== actorId) {
+          deny("That challenge is not yours to answer.");
+        }
+        break;
+
       case "LOSE":
         if (state.reveal?.playerId !== actorId) deny("That is not your influence to give up.");
         break;

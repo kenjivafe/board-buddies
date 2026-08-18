@@ -120,7 +120,10 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   s = setHand(s, "p1", "captain", "captain");
   const taxed = reducer(s, { type: "ACT", action: "tax" });
   check(taxed.phase === "reaction", "tax invites a challenge");
-  const called = reducer(taxed, { type: "CHALLENGE", challengerId: "p1" });
+  const showdown = reducer(taxed, { type: "CHALLENGE", challengerId: "p1" });
+  check(showdown.phase === "showdown", "a challenge waits on the challenged player");
+  check(showdown.reveal === null, "nobody pays until the card is turned over");
+  const called = reducer(showdown, { type: "REVEAL" });
   check(called.phase === "reveal" && called.reveal?.playerId === "p1", "wrong caller pays up");
   const after = reducer(called, { type: "LOSE", cardId: called.players[1].cards[0].id });
   check(after.players[0].coins === 5, "a proven tax still collects 3");
@@ -140,10 +143,13 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   for (let i = 0; i < 60 && !everReplaced; i++) {
     let run = start("Kenji", "Miko", "Ana");
     run = setHand(run, "p0", "duke", "contessa");
-    const challenged = reducer(reducer(run, { type: "ACT", action: "tax" }), {
-      type: "CHALLENGE",
-      challengerId: "p1",
-    });
+    const challenged = reducer(
+      reducer(reducer(run, { type: "ACT", action: "tax" }), {
+        type: "CHALLENGE",
+        challengerId: "p1",
+      }),
+      { type: "REVEAL" }
+    );
     const settled =
       challenged.phase === "reveal"
         ? reducer(challenged, { type: "LOSE", cardId: challenged.players[1].cards[0].id })
@@ -158,7 +164,13 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   let s = start("Kenji", "Miko", "Ana");
   s = setHand(s, "p0", "captain", "contessa");
   const taxed = reducer(s, { type: "ACT", action: "tax" });
-  const called = reducer(taxed, { type: "CHALLENGE", challengerId: "p1" });
+  const showdown = reducer(taxed, { type: "CHALLENGE", challengerId: "p1" });
+  check(showdown.phase === "showdown", "a bluffer is not outed before answering");
+  check(
+    showdown.beats.every((b) => b.kind !== "bluff"),
+    "and the app does not announce the bluff for them"
+  );
+  const called = reducer(showdown, { type: "REVEAL" });
   check(called.phase === "reveal" && called.reveal?.playerId === "p0", "the bluffer pays up");
   const after = reducer(called, { type: "LOSE", cardId: called.players[0].cards[0].id });
   check(after.players[0].coins === 2, "a caught bluff collects nothing");
@@ -203,7 +215,9 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   s.players[0].coins = 5;
   const hit = reducer(s, { type: "ACT", action: "assassinate", targetId: "p1" });
   const blocked = reducer(hit, { type: "BLOCK", blockerId: "p1", claim: "contessa" });
-  let called = reducer(blocked, { type: "CHALLENGE", challengerId: "p0" });
+  let called = reducer(reducer(blocked, { type: "CHALLENGE", challengerId: "p0" }), {
+    type: "REVEAL",
+  });
   check(called.reveal?.playerId === "p1", "the bluffing blocker pays first");
   called = reducer(called, { type: "LOSE", cardId: called.players[1].cards[0].id });
   check(
@@ -313,10 +327,13 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   // beat carries it and says it went back to the court.
   let s = start("Kenji", "Miko", "Ana");
   s = setHand(s, "p0", "duke", "contessa");
-  const called = reducer(reducer(s, { type: "ACT", action: "tax" }), {
-    type: "CHALLENGE",
-    challengerId: "p1",
-  });
+  const called = reducer(
+    reducer(reducer(s, { type: "ACT", action: "tax" }), {
+      type: "CHALLENGE",
+      challengerId: "p1",
+    }),
+    { type: "REVEAL" }
+  );
 
   const kinds = called.beats.map((b) => b.kind);
   check(kinds.includes("challenge"), `the call is recorded, saw ${kinds.join()}`);
@@ -335,10 +352,13 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   // A bluff reveals nothing, so no card may be attached to that beat.
   let s = start("Kenji", "Miko", "Ana");
   s = setHand(s, "p0", "captain", "contessa");
-  const called = reducer(reducer(s, { type: "ACT", action: "tax" }), {
-    type: "CHALLENGE",
-    challengerId: "p1",
-  });
+  const called = reducer(
+    reducer(reducer(s, { type: "ACT", action: "tax" }), {
+      type: "CHALLENGE",
+      challengerId: "p1",
+    }),
+    { type: "REVEAL" }
+  );
   const bluff = called.beats.find((b) => b.kind === "bluff");
   check(Boolean(bluff), "a caught bluff is recorded");
   check(
@@ -421,6 +441,8 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
           options.push({ type: "CHALLENGE", challengerId: p.id });
         }
         move = pick(options);
+      } else if (s.phase === "showdown") {
+        move = { type: "REVEAL" };
       } else if (s.phase === "reveal") {
         const player = s.players.find((p) => p.id === s.reveal!.playerId)!;
         const live = player.cards.filter((c) => !c.revealed);

@@ -7,6 +7,7 @@ import type {
   Pending,
   Phase,
   RevealRequest,
+  Showdown,
 } from "./types";
 
 export interface CardView {
@@ -34,6 +35,8 @@ export interface CoupView {
   turnIndex: number;
   pending: Pending | null;
   reveal: RevealRequest | null;
+  /** who was challenged and on what — but never whether they hold it */
+  showdown: Showdown | null;
   /** only ever populated for the player doing the exchanging */
   exchangeDraw: CardView[];
   dealIndex: number;
@@ -67,6 +70,7 @@ export function viewFor(state: CoupState, viewerId: string | null): CoupView {
     turnIndex: state.turnIndex,
     pending: state.pending,
     reveal: state.reveal,
+    showdown: state.showdown,
     dealIndex: state.dealIndex,
     log: state.log,
     beats: state.beats,

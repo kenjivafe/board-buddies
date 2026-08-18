@@ -70,6 +70,7 @@ export default function Play({
         {state.phase === "turn" && <TurnPanel state={state} dispatch={dispatch} />}
         {state.phase === "reaction" && <ReactionPanel state={state} dispatch={dispatch} />}
         {state.phase === "block" && <BlockPanel state={state} dispatch={dispatch} />}
+        {state.phase === "showdown" && <ShowdownPanel state={state} dispatch={dispatch} />}
         {state.phase === "reveal" && <RevealPanel state={state} dispatch={dispatch} />}
         {state.phase === "exchange" && <ExchangePanel state={state} dispatch={dispatch} />}
       </div>
@@ -404,6 +405,66 @@ function SelfResponse({
       {roster}
     </>
   );
+}
+
+// ---------- answering a challenge ----------
+
+/**
+ * The challenged player turns their own card over. There is no decision here —
+ * proving a true claim is always better than conceding — so this is a reveal,
+ * not a choice. What it buys is the moment: the table watches them answer
+ * instead of being told the result, and a bluffer concedes rather than being
+ * announced by the app before they have moved.
+ */
+function ShowdownPanel({ state, dispatch }: { state: CoupView; dispatch: React.Dispatch<Action> }) {
+  const showdown = state.showdown!;
+  const claimant = state.players.find((p) => p.id === showdown.claimantId)!;
+  const challenger = state.players.find((p) => p.id === showdown.challengerId)?.name ?? "Someone";
+  const label = CHARACTER_INFO[showdown.claim].name;
+  const mine = state.omniscient || state.selfId === claimant.id;
+
+  if (!mine) return <Waiting who={claimant.name} what={`must answer for the ${label}.`} />;
+
+  // works it out from their own hand — the state never carries the answer
+  const holds = known(claimant.cards).some(
+    (c) => !c.revealed && c.character === showdown.claim
+  );
+
+  const answer = (
+    <div className="showdown">
+      <p className="choose-title">
+        {challenger} called your {label}.
+      </p>
+      <button
+        className={`btn ${holds ? "btn-primary" : "btn-danger"}`}
+        onClick={() => dispatch({ type: "REVEAL" })}
+      >
+        {holds ? `Show the ${label}` : "Admit it — I was bluffing"}
+      </button>
+      <p className="hint">
+        {holds
+          ? "It goes back to the court and you draw a replacement."
+          : "You'll choose which influence to give up."}
+      </p>
+    </div>
+  );
+
+  // On a shared phone the label alone would give the answer away to everyone
+  // watching, so it waits behind the gate until the right person is holding it.
+  if (state.omniscient) {
+    return (
+      <PassGate
+        key={claimant.id}
+        name={claimant.name}
+        note={`${challenger} challenged your ${label}.`}
+        cta={`I'm ${claimant.name}`}
+      >
+        {answer}
+      </PassGate>
+    );
+  }
+
+  return answer;
 }
 
 // ---------- give up an influence ----------

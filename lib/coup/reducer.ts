@@ -9,6 +9,7 @@ import type {
   InfluenceCard,
   LogKind,
   RevealThen,
+  Showdown,
 } from "./types";
 
 export const STORAGE_KEY = "coup-v1";
@@ -26,6 +27,8 @@ export type Action =
   /** one responder declines to object; the action waits for the rest */
   | { type: "PASS"; playerId: string }
   | { type: "CHALLENGE"; challengerId: string }
+  /** the challenged player turns their card over, or admits the bluff */
+  | { type: "REVEAL" }
   | { type: "BLOCK"; blockerId: string; claim: Character }
   | { type: "LOSE"; cardId: string }
   | { type: "EXCHANGE_KEEP"; cardIds: string[] }
@@ -42,6 +45,7 @@ export function initialState(): CoupState {
     turnIndex: 0,
     pending: null,
     reveal: null,
+    showdown: null,
     exchangeDraw: [],
     dealIndex: 0,
     log: [],
@@ -100,6 +104,7 @@ function checkWin(d: CoupState): boolean {
   d.winnerId = alive[0]?.id ?? null;
   d.pending = null;
   d.reveal = null;
+  d.showdown = null;
   d.exchangeDraw = [];
   if (alive[0]) say(d, `${alive[0].name} is the last one holding power.`, "out");
   return true;
@@ -108,6 +113,7 @@ function checkWin(d: CoupState): boolean {
 function advanceTurn(d: CoupState) {
   d.pending = null;
   d.reveal = null;
+  d.showdown = null;
   d.exchangeDraw = [];
   if (checkWin(d)) return;
   let i = d.turnIndex;
@@ -251,19 +257,20 @@ function resolveAction(d: CoupState) {
 }
 
 /**
- * Settle a challenge. If the claim holds, the challenger pays; if it was a
- * bluff, the claimant pays. `onProve` / `onBluff` decide whether the original
- * action still goes ahead, which differs between challenging an actor and
- * challenging a blocker.
+ * Settle the challenge on the table, once the challenged player has answered
+ * it. If the claim holds, the challenger pays; if it was a bluff, the claimant
+ * pays. `onProve` / `onBluff` decide whether the original action still goes
+ * ahead, which differs between challenging an actor and challenging a blocker.
  */
-function resolveChallenge(
-  d: CoupState,
-  challengerId: string,
-  claimantId: string,
-  claim: Character,
-  onProve: RevealThen,
-  onBluff: RevealThen
-) {
+function settleShowdown(d: CoupState) {
+  const showdown = d.showdown;
+  if (!showdown) {
+    advanceTurn(d);
+    return;
+  }
+  const { claimantId, challengerId, claim, onProve, onBluff } = showdown;
+  d.showdown = null;
+
   const claimant = find(d, claimantId);
   if (!claimant) {
     advanceTurn(d);
@@ -406,37 +413,59 @@ export function reducer(state: CoupState, action: Action): CoupState {
       return d;
     }
 
+    /**
+     * Calling a bluff no longer settles it. The challenged player has to turn
+     * the card over themselves, so the table watches them do it rather than
+     * being told the result — and a bluffer concedes instead of being outed
+     * by the app before they have moved.
+     */
     case "CHALLENGE": {
       const pending = state.pending;
       if (!pending) return state;
-      const d = draft(state);
-      d.past = pushPast(state);
-      beat(
-        d,
-        "challenge",
-        `${name(d, action.challengerId)} calls it — ${name(
-          d,
-          state.phase === "block" ? pending.blockerId : pending.actorId
-        )} must show the card.`
-      );
+
+      let claimantId: string;
+      let claim: Character;
+      let onProve: RevealThen;
+      let onBluff: RevealThen;
+
       if (state.phase === "reaction") {
         if (!pending.claim) return state;
         // claim holds → action goes ahead; bluff → action dies
-        resolveChallenge(d, action.challengerId, pending.actorId, pending.claim, "resolve", "next");
+        [claimantId, claim, onProve, onBluff] = [pending.actorId, pending.claim, "resolve", "next"];
       } else if (state.phase === "block") {
         if (!pending.blockerId || !pending.blockClaim) return state;
         // block holds → action is stopped; bluff → action goes ahead
-        resolveChallenge(
-          d,
-          action.challengerId,
+        [claimantId, claim, onProve, onBluff] = [
           pending.blockerId,
           pending.blockClaim,
           "next",
-          "resolve"
-        );
+          "resolve",
+        ];
       } else {
         return state;
       }
+
+      if (action.challengerId === claimantId) return state;
+
+      const d = draft(state);
+      d.past = pushPast(state);
+      d.showdown = { claimantId, challengerId: action.challengerId, claim, onProve, onBluff };
+      d.phase = "showdown";
+      say(d, `${name(d, action.challengerId)} challenges ${name(d, claimantId)}.`, "challenge");
+      beat(
+        d,
+        "challenge",
+        `${name(d, action.challengerId)} calls it — ${name(d, claimantId)} must answer.`
+      );
+      return d;
+    }
+
+    /** The challenged player answers: shows the card, or admits the bluff. */
+    case "REVEAL": {
+      if (state.phase !== "showdown" || !state.showdown) return state;
+      const d = draft(state);
+      d.past = pushPast(state);
+      settleShowdown(d);
       return d;
     }
 

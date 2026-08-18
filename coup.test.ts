@@ -650,6 +650,61 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   check(fell?.who === "Miko", `the fallen card names its owner, got ${fell?.who}`);
 }
 
+{
+  // A coup is ordered when the target is picked, but only carried out when
+  // they actually hand a card over — so that line must wait for the surrender
+  // rather than firing while the victim is still choosing.
+  let s = start("Kenji", "Miko", "Ana");
+  s = JSON.parse(JSON.stringify(s));
+  s.players[0].coins = 7;
+
+  const ordered = reducer(s, { type: "ACT", action: "coup", targetId: "p1" });
+  check(ordered.phase === "reveal", "the target is still choosing");
+  const atOrder = ordered.cues.map((c) => c.path);
+  check(atOrder.includes("narrator/action_coup"), "the coup is announced on ordering");
+  check(
+    !atOrder.includes("narrator/resolve_coup"),
+    `and NOT called carried out yet — saw ${atOrder.join()}`
+  );
+
+  const landed = reducer(ordered, { type: "LOSE", cardId: ordered.players[1].cards[0].id });
+  const after = landed.cues.map((c) => c.path);
+  const carried = after.indexOf("narrator/resolve_coup");
+  const fell = after.findIndex((p) => p.endsWith("/loss") || p.endsWith("/final_loss"));
+  check(carried >= 0, `it is carried out once the card is given up — saw ${after.join()}`);
+  check(carried < fell, "and lands before the card it took speaks");
+}
+
+{
+  // Same for an assassination that gets through unchallenged.
+  let s = start("Kenji", "Miko", "Ana");
+  s = JSON.parse(JSON.stringify(s));
+  s.players[0].coins = 5;
+  const declared = reducer(reducer(s, { type: "ACT", action: "assassinate", targetId: "p1" }), {
+    type: "ALLOW",
+  });
+  check(
+    !declared.cues.map((c) => c.path).includes("narrator/resolve_assassination"),
+    `an assassination is not called done while the mark chooses — saw ${declared.cues.map((c) => c.path).join()}`
+  );
+  const struck = reducer(declared, { type: "LOSE", cardId: declared.players[1].cards[0].id });
+  check(
+    struck.cues.map((c) => c.path).includes("narrator/resolve_assassination"),
+    "it succeeds once the influence is surrendered"
+  );
+
+  // With one influence left there is no choice, so it lands immediately.
+  let quick = start("Kenji", "Miko", "Ana");
+  quick = JSON.parse(JSON.stringify(quick));
+  quick.players[0].coins = 7;
+  quick.players[1].cards[1].revealed = true;
+  const instant = reducer(quick, { type: "ACT", action: "coup", targetId: "p1" });
+  check(
+    instant.cues.map((c) => c.path).includes("narrator/resolve_coup"),
+    "with nothing to choose, the blow lands in the same breath"
+  );
+}
+
 // ---------- fuzz: random legal play must always terminate cleanly ----------
 
 {

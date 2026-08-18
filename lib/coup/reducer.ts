@@ -145,7 +145,13 @@ function advanceTurn(d: CoupState) {
  * Ask `playerId` to surrender an influence. With one card left there is no
  * decision to make, so it flips on the spot.
  */
-function requestReveal(d: CoupState, playerId: string, reason: string, then: RevealThen) {
+function requestReveal(
+  d: CoupState,
+  playerId: string,
+  reason: string,
+  then: RevealThen,
+  landCue: string | null = null
+) {
   const player = find(d, playerId);
   const live = player?.cards.filter((c) => !c.revealed) ?? [];
   if (!player || live.length === 0) {
@@ -155,19 +161,28 @@ function requestReveal(d: CoupState, playerId: string, reason: string, then: Rev
     return;
   }
   if (live.length === 1) {
-    loseCard(d, playerId, live[0].id, then);
+    // no choice to make, so the blow lands in the same breath
+    loseCard(d, playerId, live[0].id, then, landCue);
     return;
   }
-  d.reveal = { playerId, reason, then };
+  d.reveal = { playerId, reason, then, landCue };
   d.phase = "reveal";
 }
 
-function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealThen) {
+function loseCard(
+  d: CoupState,
+  playerId: string,
+  cardId: string,
+  then: RevealThen,
+  landCue: string | null = null
+) {
   const player = find(d, playerId);
   const card = player?.cards.find((c) => c.id === cardId);
   if (!player || !card || card.revealed) return;
   card.revealed = true;
   d.reveal = null;
+  // the action lands first, then the card it took speaks
+  if (landCue) cue(d, landCue);
   const surrendered = CHARACTER_INFO[card.character].name;
   say(d, `${player.name} turns over the ${surrendered}.`, "loss");
   beat(d, "surrender", `${player.name} gives up the ${surrendered}.`, card.character, "spent", player.name);
@@ -285,12 +300,17 @@ function resolveAction(d: CoupState) {
         advanceTurn(d);
         return;
       }
-      resolveCue(d);
       const reason =
         pending.action === "coup"
           ? `${actor.name} staged a coup against you.`
           : `${actor.name}'s assassin got through.`;
-      requestReveal(d, target.id, reason, "next");
+      // Held back rather than raised here: these are the only actions whose
+      // effect waits on the victim, so calling them done while that player is
+      // still choosing a card announces a blow that has not landed yet.
+      const landCue = pending.claimProven
+        ? null
+        : `narrator/resolve_${verbFor(pending.action)}`;
+      requestReveal(d, target.id, reason, "next", landCue);
       return;
     }
   }
@@ -568,8 +588,8 @@ export function reducer(state: CoupState, action: Action): CoupState {
       if (state.phase !== "reveal" || !state.reveal) return state;
       const d = draft(state);
       d.past = pushPast(state);
-      const { playerId, then } = d.reveal!;
-      loseCard(d, playerId, action.cardId, then);
+      const { playerId, then, landCue } = d.reveal!;
+      loseCard(d, playerId, action.cardId, then, landCue);
       return d;
     }
 

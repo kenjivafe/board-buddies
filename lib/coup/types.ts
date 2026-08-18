@@ -86,6 +86,13 @@ export interface RevealRequest {
   playerId: string;
   reason: string;
   then: RevealThen;
+  /**
+   * A line held back until the influence is actually surrendered. A coup is
+   * ordered when the target is picked but only carried out when they hand a
+   * card over, so the narrator waits for that rather than calling it done
+   * while the victim is still choosing.
+   */
+  landCue: string | null;
 }
 
 /**

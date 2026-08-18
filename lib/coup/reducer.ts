@@ -192,6 +192,20 @@ function swapProvenCard(d: CoupState, playerId: string, cardId: string) {
   d.court = pool.slice(1);
 }
 
+/** assassinate reads better as a noun in the narrator's mouth */
+const verbFor = (kind: ActionKind) => (kind === "assassinate" ? "assassination" : kind);
+
+/**
+ * The narrator closes an action that succeeded on a claim nobody proved. If a
+ * challenge turned the card face up, the character has already spoken for the
+ * action and the narrator stays out of it.
+ */
+function resolveCue(d: CoupState) {
+  if (d.pending && !d.pending.claimProven) {
+    cue(d, `narrator/resolve_${verbFor(d.pending.action)}`);
+  }
+}
+
 /** Carries out the pending action now that nobody has stopped it. */
 function resolveAction(d: CoupState) {
   const pending = d.pending;
@@ -208,18 +222,21 @@ function resolveAction(d: CoupState) {
 
   switch (pending.action) {
     case "income":
+      resolveCue(d);
       actor.coins += 1;
       say(d, `${actor.name} takes 1 coin.`, "action");
       advanceTurn(d);
       return;
 
     case "foreign_aid":
+      resolveCue(d);
       actor.coins += 2;
       say(d, `${actor.name} takes 2 in foreign aid.`, "action");
       advanceTurn(d);
       return;
 
     case "tax":
+      resolveCue(d);
       actor.coins += 3;
       say(d, `${actor.name} taxes the court for 3.`, "action");
       advanceTurn(d);
@@ -230,6 +247,7 @@ function resolveAction(d: CoupState) {
         advanceTurn(d);
         return;
       }
+      resolveCue(d);
       const amount = Math.min(2, target.coins);
       target.coins -= amount;
       actor.coins += amount;
@@ -262,6 +280,7 @@ function resolveAction(d: CoupState) {
         advanceTurn(d);
         return;
       }
+      resolveCue(d);
       const reason =
         pending.action === "coup"
           ? `${actor.name} staged a coup against you.`
@@ -328,8 +347,10 @@ function settleShowdown(d: CoupState, conceded: boolean) {
     if (pending?.blockerId === claimantId && pending.blockClaim === claim) {
       cue(d, `${claim}/block_${pending.action}`);
     } else if (pending?.actorId === claimantId) {
-      const verb = pending.action === "assassinate" ? "assassination" : pending.action;
-      cue(d, `${claim}/action_${verb}`);
+      cue(d, `${claim}/action_${verbFor(pending.action)}`);
+      // face up now, so it speaks for its own action and the narrator's
+      // resolution line stays out of the way
+      pending.claimProven = true;
     }
     swapProvenCard(d, claimantId, held.id);
     requestReveal(d, challengerId, `You lost a challenge to ${claimant.name}.`, onProve);
@@ -401,6 +422,7 @@ export function reducer(state: CoupState, action: Action): CoupState {
         blockerId: null,
         blockClaim: null,
         passed: [],
+        claimProven: false,
       };
       // name() falls back to "someone", so only resolve it when there really is a target
       const targetName = action.targetId ? name(d, action.targetId) : null;
@@ -562,6 +584,7 @@ export function reducer(state: CoupState, action: Action): CoupState {
       actor.cards = [...keep, ...actor.cards.filter((c) => c.revealed)];
       d.court = shuffle([...d.court, ...returned]);
       d.exchangeDraw = [];
+      resolveCue(d);
       say(d, `${actor.name} trades with the court.`, "action");
       advanceTurn(d);
       return d;

@@ -182,6 +182,7 @@ Sources are ~3.6 MB each; they're served through `next/image`, which cuts a card
 npx tsx smoke.test.ts    # King's Cup
 npx tsx coup.test.ts     # Coup
 npx tsx room.test.ts     # redaction + authorization for rooms
+npx tsx voice.test.ts    # the voice-line matrix
 ```
 
 [room.test.ts](room.test.ts) is the one to keep honest: it asserts that a player's view names **exactly two** characters — their own — and that the court and undo stack never reach the wire, then walks every authorization rule for both games.

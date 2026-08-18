@@ -66,6 +66,17 @@ export const LINES: Record<VoiceId, VoiceLines> = {
     action_exchange: ["An exchange is requested."],
     action_assassination: ["An assassination is attempted."],
     action_coup: ["A coup is ordered."],
+    // An action can succeed on a claim nobody tested. The influence stays face
+    // down whether it was real or not, so the narrator closes the loop instead.
+    // Never played when a challenge proved the claim — the character has
+    // already spoken for the action itself.
+    resolve_income: ["Income is collected."],
+    resolve_foreign_aid: ["Foreign Aid is received."],
+    resolve_tax: ["The tax is collected."],
+    resolve_steal: ["The steal succeeds."],
+    resolve_exchange: ["The exchange is completed."],
+    resolve_assassination: ["The assassination succeeds."],
+    resolve_coup: ["The coup is carried out."],
     challenge: [
       "The claim has been challenged.",
       "The claim is challenged.",

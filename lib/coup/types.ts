@@ -55,6 +55,12 @@ export interface Pending {
    * resolves once every responder appears here.
    */
   passed: string[];
+  /**
+   * Set once a challenge has proved the actor's claim, which turns that card
+   * face up. From then on the character speaks for the action itself, so the
+   * narrator's resolution line is suppressed.
+   */
+  claimProven: boolean;
 }
 
 /** What happens once the surrendered influence is chosen. */

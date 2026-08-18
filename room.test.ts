@@ -301,6 +301,56 @@ function coupGame(...names: string[]): CoupState {
 }
 
 // ============================================================
+// restarting must never strand a room
+// ============================================================
+
+{
+  // RESTART deals again through START, which lands in the pass-and-peek deal
+  // round — a phase rooms refuse to advance, so the game would show no panel
+  // and offer no legal move. Every state the adapter hands back must be live.
+  const state = coupGame("Ana", "Ben", "Cleo");
+  const restarted = coup.apply(state, { type: "RESTART" }, "p0", true) as CoupState;
+  check(restarted.phase === "turn", `a restarted room is playable, not "${restarted.phase}"`);
+  check(
+    restarted.players.every((p) => p.cards.length === 2 && p.cards.every((c) => !c.revealed)),
+    "everyone is dealt a fresh pair"
+  );
+  check(!coup.atSetup(restarted), "a restart does not read as a return to setup");
+
+  // and the same again from a finished game, which is where the button lives
+  let ended = coupGame("Ana", "Ben");
+  ended = JSON.parse(JSON.stringify(ended));
+  ended.players[0].coins = 7;
+  ended.players[1].cards[1].revealed = true;
+  ended = reducer(ended, { type: "ACT", action: "coup", targetId: "p1" });
+  check(ended.phase === "ended", "the game ends");
+  const again = coup.apply(ended, { type: "RESTART" }, "p0", true) as CoupState;
+  check(again.phase === "turn", `restarting after a win is playable, not "${again.phase}"`);
+
+  // King's Cup restarts straight into play, but assert it rather than assume
+  const kc = kings.start(seats("Ana", "Ben"), { kingMode: "cup" }) as KcState;
+  const kcAgain = kings.apply(kc, { type: "RESTART" }, "p0", true) as KcState;
+  check(kcAgain.phase === "playing", `King's Cup restarts playable, not "${kcAgain.phase}"`);
+  check(kcAgain.deck.length === 52, "a fresh deck");
+
+  // "change players" is what sends a room back to its lobby
+  check(coup.atSetup(coup.apply(state, { type: "NEW_GAME" }, "p0", true)), "Coup NEW_GAME returns to setup");
+  check(kings.atSetup(kings.apply(kc, { type: "NEW_GAME" }, "p0", true)), "King's Cup NEW_GAME returns to setup");
+
+  // no state the adapter can produce should ever be a dead end
+  for (const [name, produced] of [
+    ["start", coup.start(seats("A", "B"), {})],
+    ["restart", restarted],
+    ["restart-after-win", again],
+  ] as const) {
+    check(
+      (produced as CoupState).phase !== "deal",
+      `${name} never hands a room the deal phase`
+    );
+  }
+}
+
+// ============================================================
 // the pass flow: an action waits for every responder
 // ============================================================
 

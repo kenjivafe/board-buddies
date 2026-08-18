@@ -41,19 +41,30 @@ function deny(message: string): never {
 
 // ---------- Coup ----------
 
+/**
+ * Every device shows its owner their own hand, so the pass-and-peek deal round
+ * has nothing to do in a room. Applied to everything this adapter hands back,
+ * not just the opening state: RESTART deals again through START and lands here
+ * too, and a room stuck in `deal` renders no panel and has no legal action to
+ * escape with, because DEAL_NEXT is exactly what rooms refuse.
+ */
+function skipDeal(state: CoupState): CoupState {
+  let next = state;
+  while (next.phase === "deal") next = coupReducer(next, { type: "DEAL_NEXT" });
+  return next;
+}
+
 const coup: Adapter = {
   minSeats: 2,
   maxSeats: 6,
 
   start(seats) {
-    let state = coupReducer(coupInitial(), {
-      type: "START",
-      players: seats.map((s) => ({ id: s.id, name: s.name })),
-    });
-    // Every device shows its owner their own hand, so the pass-and-peek deal
-    // round has nothing to do here — skip straight to the first turn.
-    while (state.phase === "deal") state = coupReducer(state, { type: "DEAL_NEXT" });
-    return state;
+    return skipDeal(
+      coupReducer(coupInitial(), {
+        type: "START",
+        players: seats.map((s) => ({ id: s.id, name: s.name })),
+      })
+    );
   },
 
   apply(raw, rawAction, actorId, isHost) {
@@ -113,7 +124,7 @@ const coup: Adapter = {
         throw new RoomError("bad-action", "Unknown action.", 400);
     }
 
-    return coupReducer(state, action);
+    return skipDeal(coupReducer(state, action));
   },
 
   view(state, viewerId) {

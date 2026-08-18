@@ -29,6 +29,7 @@ export default function RoomShell({
   const { room, status, error, seated, dispatch, start, leave } = useRoom(code);
   const [name, setName] = useState("");
   const [joining, setJoining] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const takeSeat = async () => {
@@ -144,9 +145,47 @@ export default function RoomShell({
     );
   }
 
+  // Mid-game there was previously no way out at all, which also left an
+  // abandoned game trapping everyone still in it.
+  if (leaving) {
+    return (
+      <main className="shell">
+        <section className="gate">
+          <span className="eyebrow">Room {room.code}</span>
+          <h2 className="gate-name">Leave?</h2>
+          <p className="gate-note">
+            Your seat is kept. Come back any time with the code <strong>{room.code}</strong>.
+          </p>
+          <button className="btn btn-primary" onClick={() => setLeaving(false)}>
+            Stay in the game
+          </button>
+          <Link className="btn btn-ghost" href={`/${game}`}>
+            Back to the games
+          </Link>
+          {room.isHost && (
+            <>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  dispatch({ type: "NEW_GAME" });
+                  setLeaving(false);
+                }}
+              >
+                End the game for everyone
+              </button>
+              <p className="hint">
+                Ends this round and returns the whole room to the lobby, seats intact.
+              </p>
+            </>
+          )}
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="shell">
-      <RoomBar room={room} status={status} error={error} />
+      <RoomBar room={room} status={status} error={error} onLeave={() => setLeaving(true)} />
       {children(room, dispatch)}
     </main>
   );
@@ -156,10 +195,12 @@ function RoomBar({
   room,
   status,
   error,
+  onLeave,
 }: {
   room: RoomView;
   status: string;
   error: string | null;
+  onLeave: () => void;
 }) {
   return (
     <div className="room-bar">
@@ -170,6 +211,9 @@ function RoomBar({
       <span className="room-bar-you">
         You are {room.seats.find((s) => s.id === room.selfId)?.name}
       </span>
+      <button className="room-bar-leave" onClick={onLeave}>
+        Leave
+      </button>
       {error && <span className="room-bar-error">{error}</span>}
     </div>
   );

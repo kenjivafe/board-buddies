@@ -26,6 +26,7 @@ export default function Play({
   const myResolve = shared || selfId === state.current?.playerId;
   const [showHistory, setShowHistory] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [aceSheet, setAceSheet] = useState(false);
 
   const nameOf = (id: string | null | undefined) =>
@@ -149,8 +150,26 @@ export default function Play({
           <button className="bar-btn" onClick={() => setConfirmRestart(true)} aria-label="Restart game">
             {"\u21BA"}
           </button>
+          {/* rooms have their own leave in the room bar */}
+          {shared && (
+            <button className="bar-btn" onClick={() => setLeaving(true)} aria-label="Leave the game">
+              {"\u2715"}
+            </button>
+          )}
         </span>
       </footer>
+
+      {leaving && (
+        <ConfirmSheet
+          title="Leave this game?"
+          body="The deck is saved as you go, so you can pick this one up again later."
+          confirmLabel="Back to Board Buddies"
+          onConfirm={() => {
+            window.location.href = "/";
+          }}
+          onCancel={() => setLeaving(false)}
+        />
+      )}
 
       {/* pending interactions */}
       {state.pending === "pick-target" && current && myResolve && (

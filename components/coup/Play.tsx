@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CHARACTER_INFO } from "@/lib/coup/deck";
 import type { Action } from "@/lib/coup/reducer";
 import {
@@ -43,6 +44,7 @@ export default function Play({
   voice: VoiceControls;
 }) {
   const [showRules, setShowRules] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const actor = state.players[state.turnIndex];
   const marked = state.pending?.targetId ? [state.pending.targetId] : undefined;
 
@@ -66,6 +68,12 @@ export default function Play({
           <button className="pill-btn" onClick={() => setShowRules(true)}>
             Cheat sheet
           </button>
+          {/* rooms have their own leave in the room bar */}
+          {state.omniscient && (
+            <button className="pill-btn" onClick={() => setLeaving(true)}>
+              Leave
+            </button>
+          )}
           {canUndo && (
             <button
               className="icon-btn"
@@ -83,6 +91,7 @@ export default function Play({
       <Feed state={state} />
 
       {showRules && <Reference onClose={() => setShowRules(false)} />}
+      {leaving && <LeaveSheet dispatch={dispatch} onStay={() => setLeaving(false)} />}
 
       <div className="panel">
         {state.phase === "turn" && <TurnPanel state={state} dispatch={dispatch} />}
@@ -93,6 +102,46 @@ export default function Play({
         {state.phase === "exchange" && <ExchangePanel state={state} dispatch={dispatch} />}
       </div>
     </>
+  );
+}
+
+/**
+ * A way out mid-game on one phone, which otherwise had none — once dealt, the
+ * only exit was to finish. Walking away keeps the save, so the game is still
+ * there on the way back; ending it clears the table but keeps the players.
+ */
+function LeaveSheet({
+  dispatch,
+  onStay,
+}: {
+  dispatch: React.Dispatch<Action>;
+  onStay: () => void;
+}) {
+  return (
+    <div className="sheet-scrim" role="dialog" aria-modal aria-label="Leave this game">
+      <div className="sheet-card">
+        <header className="sheet-head">
+          <span className="eyebrow">Leave this game</span>
+          <button className="icon-btn" onClick={onStay} aria-label="Keep playing">
+            ✕
+          </button>
+        </header>
+
+        <p className="choose-title">
+          The game is saved as you go, so you can pick this one up again later.
+        </p>
+
+        <button className="btn btn-primary" onClick={onStay}>
+          Keep playing
+        </button>
+        <Link className="btn btn-ghost" href="/" style={{ textAlign: "center" }}>
+          Back to Board Buddies
+        </Link>
+        <button className="btn btn-danger" onClick={() => dispatch({ type: "NEW_GAME" })}>
+          End it and change players
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -15,6 +15,11 @@ export default function End({
 }) {
   const winner = state.players.find((p) => p.id === state.winnerId);
   const survived = known(winner?.cards ?? []).filter((c) => !c.revealed);
+  // the blow that ended it, from the story of the last action
+  const lastFallen = [...state.beats].reverse().find(
+    (b): b is typeof b & { character: NonNullable<typeof b.character> } =>
+      b.kind === "surrender" && b.character !== null
+  );
 
   return (
     <>
@@ -31,9 +36,23 @@ export default function End({
         </p>
       </header>
 
+      {lastFallen && (
+        <section aria-label="The final influence lost">
+          <span className="eyebrow">The last card to fall</span>
+          <div className="choose-cards" style={{ marginTop: 10 }}>
+            <CardFace character={lastFallen.character} spent caption />
+          </div>
+          <p className="hint" style={{ marginTop: 8 }}>
+            {lastFallen.text}
+          </p>
+        </section>
+      )}
+
       {survived.length > 0 && (
-        <section aria-label="What the winner was holding">
-          <span className="eyebrow">What they had all along</span>
+        <section aria-label="What the winner is holding" style={{ marginTop: 22 }}>
+          {/* Not "what they had all along" — a proven claim goes back to the
+              court and draws a replacement, so this is only the final hand. */}
+          <span className="eyebrow">Still standing</span>
           <div className="choose-cards" style={{ marginTop: 10 }}>
             {survived.map((card) => (
               <CardFace key={card.id} character={card.character} />

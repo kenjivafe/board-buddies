@@ -8,6 +8,7 @@ import Setup from "./Setup";
 import Deal from "./Deal";
 import Play from "./Play";
 import End from "./End";
+import { useVoice } from "./useVoice";
 
 const LIVE_PHASES: Phase[] = ["deal", "turn", "reaction", "block", "showdown", "reveal", "exchange"];
 
@@ -54,6 +55,8 @@ export default function Game() {
   // one device, so this holder is entitled to the whole game — the pass gates,
   // not the payload, are what keep hands private here
   const view = useMemo(() => viewFor(state, ALL_SEEING), [state]);
+  // above the phase switch, so the final influence still gets to speak
+  const voice = useVoice(view.cues);
 
   if (!hydrated) return <main className="shell" />;
 
@@ -91,7 +94,7 @@ export default function Game() {
       {/* Everything else is a phase of live play. Listing them instead meant a
           new phase rendered a blank screen until someone noticed. */}
       {!IN_PLAY.includes(state.phase) ? null : (
-        <Play state={view} dispatch={dispatch} canUndo={state.past.length > 0} />
+        <Play state={view} dispatch={dispatch} canUndo={state.past.length > 0} voice={voice} />
       )}
     </main>
   );

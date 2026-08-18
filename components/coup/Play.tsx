@@ -19,7 +19,7 @@ import { PassGate, PeekHand } from "./PassGate";
 import Table, { Feed } from "./Table";
 import Beats from "./Beats";
 import Reference from "./Reference";
-import { useVoice } from "./useVoice";
+import type { VoiceControls } from "./useVoice";
 
 /**
  * One screen for both ways of playing. On a shared phone the view is
@@ -30,13 +30,19 @@ export default function Play({
   state,
   dispatch,
   canUndo = false,
+  voice,
 }: {
   state: CoupView;
   dispatch: React.Dispatch<Action>;
   canUndo?: boolean;
+  /**
+   * Owned above this component. It used to live here, which meant the hook
+   * unmounted the instant the game ended and the last influence never got to
+   * speak — a final kill dropped straight to the end screen in silence.
+   */
+  voice: VoiceControls;
 }) {
   const [showRules, setShowRules] = useState(false);
-  const voice = useVoice(state.cues);
   const actor = state.players[state.turnIndex];
   const marked = state.pending?.targetId ? [state.pending.targetId] : undefined;
 

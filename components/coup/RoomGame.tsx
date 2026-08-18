@@ -7,25 +7,39 @@ import RoomShell from "@/components/room/RoomShell";
 import { CardFace } from "./Cards";
 import End from "./End";
 import Play from "./Play";
+import { useVoice } from "./useVoice";
 
 /** Coup across devices: your hand is yours, and nobody passes anything. */
 export default function RoomGame({ code }: { code: string }) {
   return (
     <RoomShell code={code} game="coup" minSeats={2}>
-      {(room, dispatch) => {
-        const view = room.state as CoupView;
-        const send = dispatch as React.Dispatch<Action>;
-
-        if (view.phase === "ended") return <End state={view} dispatch={send} />;
-
-        return (
-          <>
-            <Play state={view} dispatch={send} />
-            <MyHand view={view} />
-          </>
-        );
-      }}
+      {(room, dispatch) => (
+        <CoupRoom view={room.state as CoupView} dispatch={dispatch as React.Dispatch<Action>} />
+      )}
     </RoomShell>
+  );
+}
+
+/**
+ * Sits between the room and the phase switch so the voice hook outlives the
+ * end of the game — otherwise the final influence never gets to speak.
+ */
+function CoupRoom({
+  view,
+  dispatch,
+}: {
+  view: CoupView;
+  dispatch: React.Dispatch<Action>;
+}) {
+  const voice = useVoice(view.cues);
+
+  if (view.phase === "ended") return <End state={view} dispatch={dispatch} />;
+
+  return (
+    <>
+      <Play state={view} dispatch={dispatch} voice={voice} />
+      <MyHand view={view} />
+    </>
   );
 }
 

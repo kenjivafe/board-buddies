@@ -89,9 +89,10 @@ function beat(
   kind: Beat["kind"],
   text: string,
   character: Character | null = null,
-  fate: Beat["fate"] = null
+  fate: Beat["fate"] = null,
+  who: string | null = null
 ) {
-  d.beats = [...d.beats, { kind, text, character, fate }].slice(-BEAT_LIMIT);
+  d.beats = [...d.beats, { kind, text, character, fate, who }].slice(-BEAT_LIMIT);
 }
 
 /**
@@ -168,13 +169,13 @@ function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealTh
   d.reveal = null;
   const surrendered = CHARACTER_INFO[card.character].name;
   say(d, `${player.name} turns over the ${surrendered}.`, "loss");
-  beat(d, "surrender", `${player.name} gives up the ${surrendered}.`, card.character, "spent");
+  beat(d, "surrender", `${player.name} gives up the ${surrendered}.`, card.character, "spent", player.name);
   // the card is face up now, so it is allowed to speak — and its last breath
   // is a different line from merely being wounded
   cue(d, `${card.character}/${isAlive(player) ? "loss" : "final_loss"}`);
   if (!isAlive(player)) {
     say(d, `${player.name} is out.`, "out");
-    beat(d, "out", `${player.name} is out of the game.`);
+    beat(d, "out", `${player.name} is out of the game.`, null, null, player.name);
   }
   if (checkWin(d)) return;
   if (then === "resolve") resolveAction(d);
@@ -597,15 +598,22 @@ export function reducer(state: CoupState, action: Action): CoupState {
       return { ...(JSON.parse(previous) as Omit<CoupState, "past">), past } as CoupState;
     }
 
-    case "RESTART":
-      return reducer(initialState(), {
+    case "RESTART": {
+      const dealt = reducer(initialState(), {
         type: "START",
         players: state.players.map((p) => ({ id: p.id, name: p.name })),
       });
+      // Keep the cue counter climbing across deals. It used to restart at
+      // zero, so a client that had been listening all game filtered the new
+      // deal's lines out as ones it had already heard — a rematch played in
+      // silence until the ids caught up.
+      return { ...dealt, cueSeq: state.cueSeq };
+    }
 
     case "NEW_GAME": {
       const fresh = initialState();
       fresh.players = state.players.map((p) => ({ ...p, coins: STARTING_COINS, cards: [] }));
+      fresh.cueSeq = state.cueSeq;
       return fresh;
     }
 

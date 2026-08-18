@@ -51,7 +51,9 @@ export default function End({
 
       {lastFallen && (
         <section aria-label="The final influence lost" style={{ marginTop: 22 }}>
-          <span className="eyebrow">The last card to fall</span>
+          <span className="eyebrow">
+            The last card to fall{lastFallen.who ? ` · ${lastFallen.who}` : ""}
+          </span>
           <div className="choose-cards" style={{ marginTop: 10 }}>
             <CardFace character={lastFallen.character} spent caption />
           </div>

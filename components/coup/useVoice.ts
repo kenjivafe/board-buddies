@@ -121,6 +121,14 @@ export function useVoice(cues: AudioCue[] | undefined) {
       return;
     }
 
+    /*
+     * A fresh deal restarts the game's cue counter. The reducer carries it
+     * forward now, but a room switch or a reset save can still hand us lower
+     * ids than we have heard — treat that as a new game rather than filtering
+     * everything out as stale, which is how a rematch ended up silent.
+     */
+    if (list.length > 0 && primeFrom(list) < lastPlayed.current) lastPlayed.current = 0;
+
     const fresh = freshCues(list, lastPlayed.current);
     if (fresh.length === 0) return;
     lastPlayed.current = fresh[fresh.length - 1].id;

@@ -215,10 +215,11 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   check(proved.players[0].coins === 2, "the action waits until the challenger has paid");
   const done = reducer(proved, { type: "LOSE", cardId: proved.players[1].cards[0].id });
   check(done.players[0].coins === 5, "then it goes through");
-  check(
-    !done.players[0].cards.some((c) => c.character === "duke" && c.id === "forced-p0-0"),
-    "and the proven card was swapped back into the court"
-  );
+  // The proven card is shuffled back BEFORE its replacement is drawn, so it can
+  // legitimately come straight back — asserting it changed is a one-in-ten
+  // flake. The court keeping its size is the part that must always hold; the
+  // swap itself is proven above over many runs.
+  check(done.court.length === t.court.length, "and the court is unchanged in size");
 }
 
 // ---------- blocks ----------
@@ -612,6 +613,41 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   const missing = Array.from(seen).filter((p) => !(p in VARIANTS));
   check(missing.length === 0, `every cue has recorded lines; missing: ${missing.join(", ")}`);
   check(seen.size > 12, `the sweep exercised a good spread of cues, saw ${seen.size}`);
+}
+
+{
+  // A rematch must not restart the cue counter. It used to, so a client that
+  // had been listening all game filtered the new deal's lines out as ones it
+  // had already heard, and the whole rematch played in silence.
+  let s = start("Kenji", "Miko", "Ana");
+  s = reducer(s, { type: "ACT", action: "income" });
+  s = reducer(s, { type: "ACT", action: "income" });
+  const heardUpTo = s.cueSeq;
+  check(heardUpTo > 0, "the first game raised some cues");
+
+  let again = reducer(s, { type: "RESTART" });
+  check(again.cueSeq === heardUpTo, `a rematch carries the counter forward, got ${again.cueSeq}`);
+  while (again.phase === "deal") again = reducer(again, { type: "DEAL_NEXT" });
+  again = reducer(again, { type: "ACT", action: "income" });
+  check(
+    again.cues.every((c) => c.id > heardUpTo),
+    `and its lines are newer than anything already heard, got ${again.cues.map((c) => c.id).join()}`
+  );
+
+  // same for a full reset back to setup
+  const reset = reducer(s, { type: "NEW_GAME" });
+  check(reset.cueSeq === heardUpTo, "changing players carries the counter too");
+}
+
+{
+  // the story of a surrender names who it happened to, for the end screen
+  let s = start("Kenji", "Miko");
+  s = JSON.parse(JSON.stringify(s));
+  s.players[0].coins = 7;
+  const couped = reducer(s, { type: "ACT", action: "coup", targetId: "p1" });
+  const done = reducer(couped, { type: "LOSE", cardId: couped.players[1].cards[0].id });
+  const fell = done.beats.find((b) => b.kind === "surrender");
+  check(fell?.who === "Miko", `the fallen card names its owner, got ${fell?.who}`);
 }
 
 // ---------- fuzz: random legal play must always terminate cleanly ----------

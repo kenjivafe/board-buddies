@@ -100,6 +100,8 @@ export interface Beat {
   kind: "block" | "challenge" | "proven" | "bluff" | "concede" | "surrender" | "out";
   text: string;
   character: Character | null;
+  /** the player it happened to, where that makes sense */
+  who: string | null;
   /** where that card went: back into the court, or face up out of the game */
   fate: "returned" | "spent" | null;
 }

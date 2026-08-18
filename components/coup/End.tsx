@@ -36,8 +36,21 @@ export default function End({
         </p>
       </header>
 
+      {survived.length > 0 && (
+        <section aria-label={`What ${winner?.name} is holding`}>
+          {/* Not "what they had all along" — a proven claim goes back to the
+              court and draws a replacement, so this is only the final hand. */}
+          <span className="eyebrow">Still standing · {winner?.name}</span>
+          <div className="choose-cards" style={{ marginTop: 10 }}>
+            {survived.map((card) => (
+              <CardFace key={card.id} character={card.character} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {lastFallen && (
-        <section aria-label="The final influence lost">
+        <section aria-label="The final influence lost" style={{ marginTop: 22 }}>
           <span className="eyebrow">The last card to fall</span>
           <div className="choose-cards" style={{ marginTop: 10 }}>
             <CardFace character={lastFallen.character} spent caption />
@@ -48,20 +61,7 @@ export default function End({
         </section>
       )}
 
-      {survived.length > 0 && (
-        <section aria-label="What the winner is holding" style={{ marginTop: 22 }}>
-          {/* Not "what they had all along" — a proven claim goes back to the
-              court and draws a replacement, so this is only the final hand. */}
-          <span className="eyebrow">Still standing</span>
-          <div className="choose-cards" style={{ marginTop: 10 }}>
-            {survived.map((card) => (
-              <CardFace key={card.id} character={card.character} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section aria-label="Final standings">
+      <section aria-label="Final standings" style={{ marginTop: 22 }}>
         <span className="eyebrow">How it ended</span>
         <ul className="standings">
           {state.players.map((p) => (

@@ -178,6 +178,48 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   checkConservation(after, "caught bluff");
 }
 
+{
+  // A failed challenge does not cancel the action — it costs the challenger an
+  // influence AND lets the action through. Against an assassin that is fatal:
+  // one influence for the bad call, one for the assassination.
+  let s = start("Kenji", "Miko", "Ana");
+  s = setHand(s, "p0", "assassin", "duke");
+  s = setHand(s, "p1", "captain", "ambassador");
+  s = JSON.parse(JSON.stringify(s));
+  s.players[0].coins = 5;
+
+  const hit = reducer(s, { type: "ACT", action: "assassinate", targetId: "p1" });
+  const shown = reducer(reducer(hit, { type: "CHALLENGE", challengerId: "p1" }), {
+    type: "REVEAL",
+  });
+  check(shown.reveal?.playerId === "p1", "the failed challenger pays first");
+  const after = reducer(shown, { type: "LOSE", cardId: shown.players[1].cards[0].id });
+
+  check(
+    after.players[1].cards.every((c) => c.revealed),
+    "challenging an assassin and losing costs both influences"
+  );
+  check(!isAlive(after.players[1]), "which eliminates the challenger");
+  check(after.players[0].coins === 2, "and the assassin's 3 coins stay spent");
+
+  // the same shape without the kill: the tax still collects
+  let t = start("Kenji", "Miko", "Ana");
+  t = setHand(t, "p0", "duke", "contessa");
+  t = setHand(t, "p1", "captain", "ambassador");
+  const taxed = reducer(reducer(t, { type: "ACT", action: "tax" }), {
+    type: "CHALLENGE",
+    challengerId: "p1",
+  });
+  const proved = reducer(taxed, { type: "REVEAL" });
+  check(proved.players[0].coins === 2, "the action waits until the challenger has paid");
+  const done = reducer(proved, { type: "LOSE", cardId: proved.players[1].cards[0].id });
+  check(done.players[0].coins === 5, "then it goes through");
+  check(
+    !done.players[0].cards.some((c) => c.character === "duke" && c.id === "forced-p0-0"),
+    "and the proven card was swapped back into the court"
+  );
+}
+
 // ---------- blocks ----------
 
 {

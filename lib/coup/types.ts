@@ -104,6 +104,12 @@ export interface Beat {
   who: string | null;
   /** where that card went: back into the court, or face up out of the game */
   fate: "returned" | "spent" | null;
+  /**
+   * On a proven claim, the card drawn to replace the one shown. Lets the end
+   * screen put the proven card back where the replacement sits, so a game won
+   * on a Duke ends showing the Duke rather than whatever was drawn after it.
+   */
+  replacedId: string | null;
 }
 
 /**

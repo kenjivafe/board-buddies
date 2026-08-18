@@ -90,9 +90,10 @@ function beat(
   text: string,
   character: Character | null = null,
   fate: Beat["fate"] = null,
-  who: string | null = null
+  who: string | null = null,
+  replacedId: string | null = null
 ) {
-  d.beats = [...d.beats, { kind, text, character, fate, who }].slice(-BEAT_LIMIT);
+  d.beats = [...d.beats, { kind, text, character, fate, who, replacedId }].slice(-BEAT_LIMIT);
 }
 
 /**
@@ -183,14 +184,17 @@ function loseCard(d: CoupState, playerId: string, cardId: string, then: RevealTh
 }
 
 /** Puts a proven card back in the court, shuffles, and draws a replacement. */
-function swapProvenCard(d: CoupState, playerId: string, cardId: string) {
+function swapProvenCard(d: CoupState, playerId: string, cardId: string): string | null {
   const player = find(d, playerId);
-  if (!player) return;
+  if (!player) return null;
   const index = player.cards.findIndex((c) => c.id === cardId);
-  if (index < 0) return;
+  if (index < 0) return null;
   const pool = shuffle([...d.court, player.cards[index]]);
   player.cards[index] = pool[0];
   d.court = pool.slice(1);
+  // reported so the end screen can show the card that was proven, rather than
+  // whatever happened to be drawn after it
+  return pool[0].id;
 }
 
 /** assassinate reads better as a noun in the narrator's mouth */
@@ -334,12 +338,15 @@ function settleShowdown(d: CoupState, conceded: boolean) {
     );
     // the card is genuinely turned face up here before going back in the deck,
     // so this is the one moment the table gets to see it
+    const replacedId = swapProvenCard(d, claimantId, held.id);
     beat(
       d,
       "proven",
       `${claimant.name} really had the ${label}. ${name(d, challengerId)} was wrong.`,
       claim,
-      "returned"
+      "returned",
+      claimant.name,
+      replacedId
     );
     // face up at last, so the character may speak: first about the challenge,
     // then about whatever it was claiming to do
@@ -353,7 +360,6 @@ function settleShowdown(d: CoupState, conceded: boolean) {
       // resolution line stays out of the way
       pending.claimProven = true;
     }
-    swapProvenCard(d, claimantId, held.id);
     requestReveal(d, challengerId, `You lost a challenge to ${claimant.name}.`, onProve);
   } else {
     say(d, `${claimant.name} has no ${label} — caught bluffing.`, "challenge");

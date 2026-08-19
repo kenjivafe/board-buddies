@@ -21,7 +21,7 @@ const CUE_LIMIT = 8;
 const STARTING_COINS = 2;
 
 export type Action =
-  | { type: "START"; players: { id: string; name: string }[] }
+  | { type: "START"; players: { id: string; name: string }[]; openerId?: string }
   | { type: "DEAL_NEXT" }
   | { type: "ACT"; action: ActionKind; targetId?: string }
   /** nobody challenged (reaction) or nobody challenged the block (block) */
@@ -36,6 +36,7 @@ export type Action =
   | { type: "EXCHANGE_KEEP"; cardIds: string[] }
   | { type: "UNDO" }
   | { type: "RESTART" }
+  /* eslint-disable-next-line @typescript-eslint/no-duplicate-type-constituents */
   | { type: "NEW_GAME" }
   | { type: "HYDRATE"; state: CoupState };
 
@@ -356,7 +357,7 @@ function settleShowdown(d: CoupState, conceded: boolean) {
   if (held) {
     say(
       d,
-      `${claimant.name} shows the ${label}. ${name(d, challengerId)} called it wrong.`,
+      `${claimant.name} shows the ${label}. ${name(d, challengerId)} called it wrong — the ${label} goes back to the court and ${claimant.name} draws a replacement.`,
       "challenge"
     );
     // the card is genuinely turned face up here before going back in the deck,
@@ -400,17 +401,27 @@ export function reducer(state: CoupState, action: Action): CoupState {
     case "START": {
       if (action.players.length < 2) return state;
       const court = buildCourt();
+      /*
+       * Who opens. Seat order used to decide it outright, so whoever typed
+       * their name first — or joined the room first — opened every game of the
+       * night, which is a real edge in a game this short. A rematch hands it
+       * to whoever won instead.
+       */
+      const opener = action.openerId
+        ? Math.max(0, action.players.findIndex((p) => p.id === action.openerId))
+        : 0;
       const players: CoupPlayer[] = action.players.map((p, i) => ({
         id: p.id,
         name: p.name,
         // head-to-head, whoever opens starts a coin short
-        coins: action.players.length === 2 && i === 0 ? STARTING_COINS - 1 : STARTING_COINS,
+        coins: action.players.length === 2 && i === opener ? STARTING_COINS - 1 : STARTING_COINS,
         cards: [court[i * 2], court[i * 2 + 1]],
       }));
       const d: CoupState = {
         ...initialState(),
         phase: "deal",
         players,
+        turnIndex: opener,
         court: court.slice(action.players.length * 2),
       };
       // head-to-head starts the opener a coin down, so don't promise "two each"
@@ -631,6 +642,8 @@ export function reducer(state: CoupState, action: Action): CoupState {
       const dealt = reducer(initialState(), {
         type: "START",
         players: state.players.map((p) => ({ id: p.id, name: p.name })),
+        // the table rotates: whoever took the last one opens the next
+        openerId: state.winnerId ?? undefined,
       });
       // Keep the cue counter climbing across deals. It used to restart at
       // zero, so a client that had been listening all game filtered the new

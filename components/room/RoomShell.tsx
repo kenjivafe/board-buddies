@@ -28,7 +28,7 @@ export default function RoomShell({
   startOptions?: (room: RoomView) => Record<string, unknown>;
   children: (room: RoomView, dispatch: (action: unknown) => void) => React.ReactNode;
 }) {
-  const { room, status, error, seated, dispatch, start, leave } = useRoom(code);
+  const { room, status, error, seated, dispatch, start, leave, drop } = useRoom(code);
   const [name, setName] = useState("");
   const [joining, setJoining] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -137,10 +137,17 @@ export default function RoomShell({
           error={error}
           extra={lobbyExtra?.(room)}
           onStart={() => void start(startOptions?.(room)).catch(() => {})}
+          onDrop={(seatId) => void drop(seatId).catch(() => {})}
           onLeave={() => {
-            void leave().finally(() => {
-              window.location.href = `/${game}`;
-            });
+            // Only walk away once the seat has actually been released. Going
+            // regardless left the room holding a seat for somebody who had
+            // left, and the game then dealt them in and waited on them.
+            void leave().then(
+              () => {
+                window.location.href = `/${game}`;
+              },
+              () => {}
+            );
           }}
         />
       </main>

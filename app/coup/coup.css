@@ -1151,20 +1151,42 @@ button.card-slot:active .coup-card {
 
 .standing {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   padding: 9px 12px;
   border-radius: 4px;
   border: 1px solid var(--line);
   border-left: 3px solid transparent;
   background: var(--surface);
-  opacity: 0.58;
+  opacity: 0.72;
 }
 
 .standing.alive {
   opacity: 1;
   border-left-color: var(--hot);
+}
+
+.standing-head {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* everybody's hand at the end, the loser's included — theirs is face up
+   already, so there is nothing left to protect */
+.standing-cards {
+  flex: none;
+  display: flex;
+  gap: 5px;
+}
+
+/* CardFace flexes to fill its row by default; here it is a thumbnail */
+.standing-cards .card-slot {
+  flex: none;
+  width: 42px;
+  max-width: 42px;
 }
 
 .standing-name {

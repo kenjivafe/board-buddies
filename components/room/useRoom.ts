@@ -160,10 +160,21 @@ export function useRoom(code: string) {
     [send]
   );
 
+  /**
+   * Give the seat up, then forget the token.
+   *
+   * The failure is deliberately not swallowed: if the seat could not be
+   * released, the caller has to know before it navigates away, because
+   * otherwise the room goes on holding a seat for somebody who has left and
+   * the game deals them in.
+   */
   const leave = useCallback(async () => {
-    await send({ op: "leave" }).catch(() => {});
+    await send({ op: "leave" });
     forgetToken(code);
   }, [send, code]);
+
+  /** Host only, lobby only: clear out a seat nobody is sitting in. */
+  const drop = useCallback((seatId: string) => send({ op: "drop", seatId }), [send]);
 
   return {
     room,
@@ -173,6 +184,7 @@ export function useRoom(code: string) {
     dispatch,
     start,
     leave,
+    drop,
     clearError: () => setError(null),
   };
 }

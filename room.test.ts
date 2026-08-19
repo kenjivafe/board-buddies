@@ -16,7 +16,7 @@ import {
 } from "./lib/werewolf/reducer";
 import { ROLES } from "./lib/werewolf/roles";
 import type { OnuwState, Role as WwRole } from "./lib/werewolf/types";
-import { RoomError, type Seat } from "./lib/room/types";
+import { RoomError, type RoomPhase, type Seat } from "./lib/room/types";
 
 /** A full lineup record from just the roles you care about. */
 const wwLineup = (counts: Partial<Record<WwRole, number>>): Record<WwRole, number> => ({
@@ -652,6 +652,61 @@ function coupGame(...names: string[]): CoupState {
   check(
     !scrubbed.includes("werewolf"),
     "and outside the box, the pack is never named to its neighbours"
+  );
+}
+
+// ---------- clearing out a seat nobody is sitting in ----------
+
+/**
+ * "Leave room" only works for somebody still looking at the page. Close the
+ * tab and the seat stays — and then the game deals it a hand and waits on it.
+ * The host's ✕ is the way out of that, so the rules around it are worth
+ * pinning down even though the route itself needs Redis to run.
+ */
+{
+  const room = {
+    code: "ABCD",
+    game: "coup" as const,
+    phase: "lobby" as RoomPhase,
+    hostId: "p0",
+    seats: seats("Ana", "Ben", "Cleo"),
+    state: null,
+    createdAt: 0,
+    version: 1,
+  };
+
+  /** The rule the route applies, lifted out so it can be checked in isolation. */
+  const drop = (current: typeof room, byId: string, seatId: string) => {
+    if (current.hostId !== byId) throw new RoomError("forbidden", "Only the host.", 403);
+    if (current.phase !== "lobby") throw new RoomError("already-started", "Too late.", 409);
+    if (seatId === current.hostId) throw new RoomError("bad-action", "Not yourself.", 400);
+    const remaining = current.seats.filter((s) => s.id !== seatId);
+    if (remaining.length === current.seats.length) {
+      throw new RoomError("not-found", "Already gone.", 404);
+    }
+    return { ...current, seats: remaining };
+  };
+
+  denies(() => drop(room, "p1", "p2"), "a guest cannot remove anybody");
+  denies(() => drop(room, "p0", "p0"), "the host cannot remove themselves");
+  denies(() => drop(room, "p0", "nobody"), "a seat that has already gone is refused");
+  denies(
+    () => drop({ ...room, phase: "playing" as RoomPhase }, "p0", "p1"),
+    "and nobody is removed once the game is running"
+  );
+
+  allows(() => drop(room, "p0", "p1"), "the host may clear out a guest's seat");
+  const after = drop(room, "p0", "p1");
+  check(after.seats.length === 2, "the seat is gone");
+  check(!after.seats.some((s) => s.id === "p1"), "and it is the right one");
+  check(after.hostId === "p0", "the host is unchanged");
+
+  // the point of all this: the dealt game must not include them
+  const dealt = coup.start(after.seats, {}) as CoupState;
+  check(dealt.players.length === 2, `a dropped seat is not dealt in, saw ${dealt.players.length}`);
+  check(
+    !dealt.players.some((p) => p.id === "p1"),
+    "and the game never waits on somebody who left"
   );
 }
 

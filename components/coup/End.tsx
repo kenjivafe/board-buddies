@@ -90,17 +90,40 @@ export default function End({
         </section>
       )}
 
+      {/*
+        Everybody's hand, not just the winner's. A player who is out has both
+        influences face up already, so this gives nothing away — and it is the
+        first chance the table gets to see who was bluffing about what all game,
+        which was previously hidden behind a line of text saying "out".
+      */}
       <section aria-label="Final standings" style={{ marginTop: 22 }}>
         <span className="eyebrow">How it ended</span>
         <ul className="standings">
-          {state.players.map((p) => (
-            <li className={`standing${isAlive(p) ? " alive" : ""}`} key={p.id}>
-              <span className="standing-name">{p.name}</span>
-              <span className="standing-note">
-                {isAlive(p) ? `${p.coins} coins, still standing` : "Out of influence"}
-              </span>
-            </li>
-          ))}
+          {state.players.map((p) => {
+            const cards = known(p.cards);
+            return (
+              <li className={`standing${isAlive(p) ? " alive" : ""}`} key={p.id}>
+                <span className="standing-head">
+                  <span className="standing-name">{p.name}</span>
+                  <span className="standing-note">
+                    {isAlive(p) ? `${p.coins} coins, still standing` : "Out of influence"}
+                  </span>
+                </span>
+                {cards.length > 0 && (
+                  <span className="standing-cards">
+                    {cards.map((card) => (
+                      <CardFace
+                        key={card.id}
+                        character={card.character}
+                        spent={card.revealed}
+                        sizes="64px"
+                      />
+                    ))}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
 

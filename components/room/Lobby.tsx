@@ -13,6 +13,7 @@ export default function Lobby({
   minSeats,
   onStart,
   onLeave,
+  onDrop,
   extra,
   error,
 }: {
@@ -20,6 +21,8 @@ export default function Lobby({
   minSeats: number;
   onStart: () => void;
   onLeave: () => void;
+  /** host only: clear out a seat nobody is sitting in */
+  onDrop?: (seatId: string) => void;
   /** game-specific pre-game options, host only */
   extra?: React.ReactNode;
   error?: string | null;
@@ -76,6 +79,18 @@ export default function Lobby({
               <span className="seat-name">{seat.name}</span>
               {seat.isHost && <span className="seat-tag">Host</span>}
               {seat.id === room.selfId && <span className="seat-tag you-tag">You</span>}
+              {/* Somebody who closes the tab never releases their seat, and the
+                  game would go on dealing them a hand and waiting on it. */}
+              {room.isHost && !seat.isHost && onDrop && (
+                <button
+                  className="icon-btn"
+                  onClick={() => onDrop(seat.id)}
+                  aria-label={`Remove ${seat.name} from the room`}
+                  title={`Remove ${seat.name}`}
+                >
+                  ✕
+                </button>
+              )}
             </li>
           ))}
         </ul>

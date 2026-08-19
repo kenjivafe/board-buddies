@@ -804,6 +804,73 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   );
 }
 
+// ---------- a proven claim costs you the card ----------
+
+{
+  // Winning a challenge does not let you keep the card you proved: it goes
+  // back into the court, gets shuffled, and you draw a replacement.
+  let s = setHand(start("Kenji", "Miko", "Ana"), "p0", "duke", "contessa");
+  const before = s.players[0].cards.map((c) => c.id);
+  const court = s.court.length;
+
+  s = reducer(s, { type: "ACT", action: "tax" });
+  s = reducer(s, { type: "CHALLENGE", challengerId: "p1" });
+  s = reducer(s, { type: "REVEAL" });
+
+  const after = s.players[0].cards.map((c) => c.id);
+  check(after[0] !== before[0], "a proven card is swapped for a fresh one");
+  check(after[1] === before[1], "and the other influence is left alone");
+  check(s.court.length === court, "the court is the same size — one in, one out");
+  check(s.court.some((c) => c.character === "duke"), "the proven Duke is back in the court");
+  checkConservation(s, "after a proven challenge");
+  check(
+    s.log.some((l) => l.text.includes("draws a replacement")),
+    "and the table is told it happened"
+  );
+
+  // a bluff that gets caught keeps nothing and swaps nothing
+  let bluff = setHand(start("Kenji", "Miko", "Ana"), "p0", "contessa", "contessa");
+  const held = bluff.players[0].cards.map((c) => c.id);
+  bluff = reducer(bluff, { type: "ACT", action: "tax" });
+  bluff = reducer(bluff, { type: "CHALLENGE", challengerId: "p1" });
+  bluff = reducer(bluff, { type: "REVEAL" });
+  check(
+    bluff.players[0].cards.map((c) => c.id).join() === held.join(),
+    "a caught bluff swaps nothing — there was no card to prove"
+  );
+}
+
+// ---------- the table rotates ----------
+
+{
+  // Seat order used to decide who opened every single game.
+  let s = start("Kenji", "Miko", "Ana");
+  check(s.turnIndex === 0, "the first game of the night opens on the first seat");
+
+  // hand it to Ana and restart: she opens the next one
+  s = { ...s, phase: "ended", winnerId: "p2" };
+  const rematch = reducer(s, { type: "RESTART" });
+  check(rematch.turnIndex === 2, `the winner opens the rematch, saw seat ${rematch.turnIndex}`);
+  check(
+    rematch.players.map((p) => p.id).join() === "p0,p1,p2",
+    "and the seating is left alone — only the opener moves"
+  );
+
+  // head to head, the coin handicap follows the opener rather than seat one
+  let duel = start("Kenji", "Miko");
+  duel = { ...duel, phase: "ended", winnerId: "p1" };
+  const again = reducer(duel, { type: "RESTART" });
+  check(again.turnIndex === 1, "head-to-head, the winner opens");
+  check(
+    again.players[1].coins === 1 && again.players[0].coins === 2,
+    `the opener takes the coin handicap, saw ${again.players.map((p) => p.coins).join("/")}`
+  );
+
+  // a game nobody won still deals
+  const nobody = reducer({ ...start("Kenji", "Miko"), winnerId: null }, { type: "RESTART" });
+  check(nobody.turnIndex === 0, "with no winner on record the first seat opens");
+}
+
 if (failures === 0) console.log("ALL COUP TESTS PASSED");
 else {
   console.error(`${failures} check(s) failed`);

@@ -45,6 +45,8 @@ Writes use compare-and-set against that version key via a small Lua script, so t
 
 `MAX_SEATS` in [store.ts](lib/room/store.ts) caps every room at 8 for the same reason, whatever a game's own maximum says — King's Cup and One Night Werewolf both seat more than that on one phone.
 
+**Seats have to be reclaimable.** "Leave room" only works for somebody still looking at the page; close the tab and the seat stays, and the game then deals it a hand and waits on it all night. So the host gets an ✕ beside every other seat in the lobby (`op: "drop"`), lobby-only for the same reason leaving is — removing a player mid-game would strand the state. Leaving no longer navigates away until the seat has actually been released, either.
+
 ## Layout
 
 The hub at `/` lists every game; each game owns a route and a matching folder in each top-level directory.
@@ -160,6 +162,7 @@ Rules the app enforces so nobody has to:
 - Losing your last influence eliminates you, and the turn order skips you
 - With one influence left there's no choice to make, so the card flips without a prompt
 - Two coins each, except head-to-head where the opening player starts on one
+- A rematch opens on whoever won the last one, rather than always on the first seat — and head-to-head the coin handicap follows the opener
 
 Also: undo (30-step stack), localStorage autosave with a resume prompt, and a public board showing coins and spent influences.
 

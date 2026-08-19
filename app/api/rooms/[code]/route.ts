@@ -33,7 +33,8 @@ type Body =
   | { op: "join"; name: string }
   | { op: "start"; token: string; options?: StartOptions }
   | { op: "action"; token: string; action: unknown }
-  | { op: "leave"; token: string };
+  | { op: "leave"; token: string }
+  | { op: "drop"; token: string; seatId: string };
 
 export async function POST(request: Request, { params }: Params) {
   try {
@@ -78,6 +79,35 @@ export async function POST(request: Request, { params }: Params) {
         return { ...current, seats, hostId };
       });
       return NextResponse.json({ room: present(room, null) });
+    }
+
+    /*
+     * The host clears out a seat nobody is sitting in.
+     *
+     * "Leave room" only works for somebody who is still looking at the page.
+     * Close the tab, lose the phone, or join twice by mistake and the seat
+     * stays — and then the game deals that seat a hand and waits on it all
+     * night. This is the way out of that, and it is lobby-only for the same
+     * reason leaving is: removing a player mid-game would strand the state.
+     */
+    if (body.op === "drop") {
+      const room = await mutateRoom(code, (current) => {
+        if (current.hostId !== me.id) {
+          throw new RoomError("forbidden", "Only the host can remove players.", 403);
+        }
+        if (current.phase !== "lobby") {
+          throw new RoomError("already-started", "The game has already started.", 409);
+        }
+        if (body.seatId === current.hostId) {
+          throw new RoomError("bad-action", "The host cannot remove themselves.", 400);
+        }
+        const seats = current.seats.filter((s) => s.id !== body.seatId);
+        if (seats.length === current.seats.length) {
+          throw new RoomError("not-found", "That player has already gone.", 404);
+        }
+        return { ...current, seats };
+      });
+      return NextResponse.json({ room: present(room, me) });
     }
 
     if (body.op === "start") {

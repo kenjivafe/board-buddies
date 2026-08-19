@@ -1301,35 +1301,25 @@
 
 /* ---------- your own card, at the foot of your own device ---------- */
 
+/* Your own card, drawn the way the deal draws it rather than as a thumbnail in
+   a strip — it is the most important thing on your screen in a room. */
 .you-are {
+  margin-top: 26px;
+  text-align: center;
+}
+
+.you-are-card {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 22px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  justify-content: center;
+  margin-top: 14px;
 }
 
-.you-are-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
+.you-are .role-brief {
+  margin-top: 12px;
 }
 
-.you-are-name {
-  font-family: var(--display);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--paper);
-}
-
-.you-are-note {
-  font-size: 11.5px;
-  color: var(--muted);
-  line-height: 1.45;
+.you-are .hint {
+  margin-top: 10px;
 }
 
 /* ---------- the end ---------- */

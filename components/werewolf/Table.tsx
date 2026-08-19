@@ -3,7 +3,7 @@
 import { ROLE_INFO } from "@/lib/werewolf/roles";
 import type { Note } from "@/lib/werewolf/types";
 import type { OnuwView, PlayerView } from "@/lib/werewolf/view";
-import { CardBack, CardFace, CardSlot, TEAM_NAME, sizeForCount, tint } from "./Bits";
+import { CardBack, CardFace, CardSlot, RoleBrief, Rule, sizeForCount, tint } from "./Bits";
 
 /**
  * The people a night role can choose between, as the cards in front of them.
@@ -157,12 +157,15 @@ export function Notebook({
   /** notes from this index on are highlighted as new */
   freshFrom?: number;
 }) {
-  if (notes.length === 0) return null;
+  // "You were dealt the …" is already the card sitting on the screen; the
+  // notebook is for what you *found out*
+  const learned = notes.filter((n) => n.step !== "deal");
+  if (learned.length === 0) return null;
   return (
     <section className="ww-section" aria-label={label}>
       <span className="eyebrow">{label}</span>
       <ul className="notebook">
-        {notes.map((n, i) => (
+        {learned.map((n, i) => (
           <li className={`note${i >= freshFrom ? " fresh" : ""}`} key={i}>
             <p className="note-text">{n.text}</p>
             {n.cards.length > 0 && (
@@ -212,22 +215,27 @@ export function Shown({ notes, label }: { notes: Note[]; label?: string }) {
   );
 }
 
-/** Your own card, parked at the foot of your own device for the whole game. */
+/**
+ * Your own card, on your own device, for the whole game.
+ *
+ * Drawn the way the deal draws it on one phone — a card with its name under
+ * it — rather than as a thumbnail in a strip. It is the single most important
+ * thing on the screen in a room, and it was the smallest.
+ */
 export function YouAre({ view }: { view: OnuwView }) {
   const self = view.self;
   if (!self) return null;
-  const info = ROLE_INFO[self.dealt];
 
   return (
     <section className="you-are" aria-label="The card you were dealt">
-      <CardFace role={self.dealt} size="sm" />
-      <span className="you-are-body">
-        <span className="you-are-name">You were dealt the {info.name}</span>
-        <span className="you-are-note">
-          {TEAM_NAME[info.team]} · what you hold at the end is what you win with, and it may
-          not be this.
-        </span>
-      </span>
+      <Rule>Your card</Rule>
+      <div className="you-are-card">
+        <CardFace role={self.dealt} size="md" />
+      </div>
+      <RoleBrief role={self.dealt} />
+      <p className="hint">
+        What you hold at the end is what you win with, and it may not be this.
+      </p>
     </section>
   );
 }

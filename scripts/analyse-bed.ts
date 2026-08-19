@@ -158,10 +158,62 @@ async function main() {
     `${bars} whole bars fit: loop ${downbeat.toFixed(4)}..${loopEnd.toFixed(4)}, ` +
       `dropping ${(seconds - loopEnd).toFixed(4)}s off the end\n`
   );
+  // ---------- and what key it is in, for the stings to be written against ----------
+
+  const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  /** Goertzel: the energy at one exact frequency, without a whole FFT. */
+  const power = (freq: number, from: number, len: number) => {
+    const k = (2 * Math.PI * freq) / sampleRate;
+    const c = 2 * Math.cos(k);
+    let s1 = 0;
+    let s2 = 0;
+    for (let i = from; i < from + len; i++) {
+      const s0 = mono[i] + c * s1 - s2;
+      s2 = s1;
+      s1 = s0;
+    }
+    return s1 * s1 + s2 * s2 - c * s1 * s2;
+  };
+
+  const WIN = sampleRate * 2;
+  const windows: number[] = [];
+  for (let s = 0; s + WIN < n; s += WIN * 2) windows.push(s);
+
+  const chroma = new Array(12).fill(0);
+  let root = { midi: 0, energy: -1 };
+  for (let midi = 24; midi <= 72; midi++) {
+    const f = 440 * Math.pow(2, (midi - 69) / 12);
+    if (f < 30 || f > 900) continue;
+    let e = 0;
+    for (const s of windows) e += Math.sqrt(Math.max(0, power(f, s, WIN)));
+    chroma[midi % 12] += e;
+    // the lowest register is where a tom's fundamental actually is
+    if (midi <= 55 && e > root.energy) root = { midi, energy: e };
+  }
+  const total = chroma.reduce((a: number, b: number) => a + b, 0);
+  const ranked = chroma
+    .map((v: number, i: number) => ({ note: NAMES[i], share: v / total }))
+    .sort((x: { share: number }, y: { share: number }) => y.share - x.share);
+
+  console.log("pitch classes by energy:");
+  for (const r of ranked.slice(0, 4)) console.log(`  ${r.note.padEnd(3)} ${(r.share * 100).toFixed(1)}%`);
+  const third = ranked.findIndex((r: { note: string }) => r.note === NAMES[(root.midi + 3) % 12]);
+  const majThird = ranked.findIndex((r: { note: string }) => r.note === NAMES[(root.midi + 4) % 12]);
+  const quality = third <= majThird ? "minor" : "major";
+  console.log(
+    `\nstrongest low fundamental ${NAMES[root.midi % 12]}${Math.floor(root.midi / 12) - 1} ` +
+      `(${(440 * Math.pow(2, (root.midi - 69) / 12)).toFixed(1)} Hz), ` +
+      `${quality} third the stronger of the two\n`
+  );
+
   console.log("for lib/werewolf/ambience.ts:");
   console.log(`  export const BED_BPM = ${Number(beatAt.bpm.toFixed(1))};`);
   console.log(`  export const BED_FIRST_DOWNBEAT = ${Number(downbeat.toFixed(4))};`);
   console.log(`  export const BED_LOOP_BARS = ${bars};`);
+  console.log(`  export const BED_KEY = "${NAMES[root.midi % 12]} ${quality}";`);
+  console.log(
+    `  export const BED_ROOT_HZ = ${(440 * Math.pow(2, (root.midi - 69) / 12)).toFixed(2)};`
+  );
 }
 
 void main();

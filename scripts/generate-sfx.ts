@@ -17,7 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { SOUNDS, soundFile } from "../lib/werewolf/ambience";
+import { SOUNDS, promptFor, soundFile } from "../lib/werewolf/ambience";
 
 const ROOT = path.resolve(import.meta.dirname ?? ".", "..");
 const OUT = path.join(ROOT, "public");
@@ -62,7 +62,8 @@ async function main() {
       const rel = soundFile(spec.stem, v);
       jobs.push({
         file: path.join(OUT, rel),
-        prompt: spec.prompt,
+        // a later take can be a different idea, not just another roll
+        prompt: promptFor(spec, v),
         seconds: spec.seconds,
         label: rel,
         music: Boolean(spec.music),

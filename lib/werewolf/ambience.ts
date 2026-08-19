@@ -19,6 +19,16 @@ export interface SoundSpec {
   stem: string;
   /** the brief handed to the generator */
   prompt: string;
+  /**
+   * Briefs for later takes, where a take is a different idea rather than
+   * another roll of the same one. `retakes[0]` is take 2, and anything past
+   * the end falls back to `prompt`.
+   *
+   * The stings use this: take 1 is the plain sound effect the night shipped
+   * with, take 2 is the same event written to the bed's key and tempo. Both
+   * stay on disk, so which one the game plays is one constant away.
+   */
+  retakes?: string[];
   seconds: number;
   /** 0–1, before any ducking */
   gain: number;
@@ -97,13 +107,68 @@ const STING_PROMPTS: Record<NightStep, string> = {
     "A slow ticking clock and a wooden bed frame creaking softly in a quiet room. No music.",
 };
 
+/**
+ * The bed's key, measured the same way as its tempo.
+ *
+ * `scripts/analyse-bed.ts` sums a chroma over the whole loop: C# takes a
+ * quarter of the energy on its own and the strongest low fundamental is C#3 at
+ * 138.6Hz, with the minor third above the major. Toms smear across neighbouring
+ * pitch classes, so this is "the drums sit around C#" rather than a key
+ * signature — but it is enough to write a brief against.
+ */
+export const BED_KEY = "C# minor";
+export const BED_ROOT_HZ = 138.59;
+
+/**
+ * Take two: the same event, written to the room.
+ *
+ * The first set are sound effects that happen to be playing while music is on.
+ * These ask for one hit, on the downbeat, at the bed's tempo and in its key —
+ * so the sting reads as part of the track rather than as something dropped on
+ * top of it. The role still has to be recognisable from its own sound, which
+ * is the whole point of having one, so the character comes first in every
+ * brief and the tuning comes after.
+ */
+const TONAL_PROMPTS: Record<NightStep, string> = {
+  werewolf:
+    "One low guttural wolf growl over a single deep tom hit tuned to C#, landing together on the downbeat. Dark, threatening, tight decay. Tempo 70 BPM, key C# minor. One hit only, no loop, no melody, no music bed.",
+  minion:
+    "One conspiratorial whisper over a soft muted low drum and a dark tuned bell in C# minor, struck once on the downbeat. Secretive and close, short tail. Tempo 70 BPM. No words, no loop, no melody.",
+  mason:
+    "Two stone blocks struck together on the beat over a low wooden tom tuned to C#, a tight two-hit figure on the downbeat. Solid and dry. Tempo 70 BPM, key C# minor. No loop, no melody.",
+  seer:
+    "A soft mystical shimmer of glass and crystal ringing on a C# minor chord, struck once on the downbeat over a quiet low tom. Ethereal, rising, short tail. Tempo 70 BPM. No loop, no melody, no vocals.",
+  robber:
+    "A quick clink of coins in a leather purse over a muted low tom tuned to C#, one hit on the downbeat with a sneaking footstep behind it. Furtive, dry, tight decay. Tempo 70 BPM, key C# minor. No loop, no melody.",
+  witch:
+    "A cauldron bubbling and one glass bottle uncorked over a low tom tuned to C# and a dark tuned chime in C# minor, on the downbeat. Eerie and close, short tail. Tempo 70 BPM. No loop, no melody.",
+  troublemaker:
+    "A mischievous whoosh of two things swapping places over two quick hand drum hits tuned to C#, landing on the downbeat with a light rattle. Playful and dry. Tempo 70 BPM, key C# minor. No loop, no melody.",
+  drunk:
+    "A glass bottle clinking against a tankard over a loose low tom tuned to C#, one clumsy hit on the downbeat with liquid sloshing. Dry, short tail. Tempo 70 BPM, key C# minor. No loop, no melody.",
+  insomniac:
+    "A slow ticking clock and a wooden bed frame creaking over one soft low tom tuned to C# on the downbeat, with a faint dark drone in C# minor. Quiet and still, short tail. Tempo 70 BPM. No loop, no melody.",
+};
+
 export const STINGS: SoundSpec[] = NIGHT_ORDER.map((step) => ({
   stem: `sting_${step}`,
   prompt: STING_PROMPTS[step],
+  retakes: [TONAL_PROMPTS[step]],
+  // shorter than take one: a hit that decays inside the bar it lands on
   seconds: 3,
   gain: 0.55,
-  variants: 1,
+  variants: 2,
 }));
+
+/**
+ * Which take of the stings the night plays.
+ *
+ * Both sets stay on disk. Take 1 is the plain sound effect, take 2 is the same
+ * event written to the bed's key and tempo — moving between them is this line
+ * and nothing else, which is the only sane way to judge a change you can only
+ * evaluate by ear.
+ */
+export const STING_TAKE = 2;
 
 /**
  * "It is you." Played on your own device when the night reaches you.
@@ -173,6 +238,10 @@ export const soundFile = (stem: string, variant = 1): string =>
 export const takeOf = (spec: SoundSpec): string =>
   soundFile(spec.stem, 1 + Math.floor(Math.random() * spec.variants));
 
+/** The brief for one take: a retake if there is one, otherwise the original. */
+export const promptFor = (spec: SoundSpec, variant: number): string =>
+  variant === 1 ? spec.prompt : (spec.retakes?.[variant - 2] ?? spec.prompt);
+
 /** The neutral "your phone wants you" chime. */
 export const wakeFile = (): string => soundFile(WAKE_CUE.stem);
 
@@ -180,5 +249,6 @@ export const wakeFile = (): string => soundFile(WAKE_CUE.stem);
 export const WAKE_BUZZ: number[] = [180, 90, 180];
 
 /** The sound a role arrives on. */
-export const stingFile = (step: NightStep): string => soundFile(`sting_${step}`);
+export const stingFile = (step: NightStep): string =>
+  soundFile(`sting_${step}`, STING_TAKE);
 export const STING_GAIN = 0.55;

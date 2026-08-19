@@ -23,6 +23,7 @@ import {
   HOWL,
   HOWL_GAP,
   SOUNDS,
+  STING_TAKE,
   soundFile,
   wakeFile,
   stingFile,
@@ -532,10 +533,26 @@ for (const b of BLOCKS) {
   // every role arrives on its own sound, at the moment it is named
   for (const step of NIGHT_ORDER) {
     const file = stingFile(step);
-    check(SOUNDS.some((s) => soundFile(s.stem) === file), `${step} has a sting in the manifest`);
+    const spec = SOUNDS.find((s) => soundFile(s.stem, STING_TAKE) === file);
+    check(spec !== undefined, `${step} has a sting in the manifest`);
+    check(
+      (spec?.variants ?? 0) >= STING_TAKE,
+      `${step}'s sting is cut in at least ${STING_TAKE} takes, since take ${STING_TAKE} is the one played`
+    );
     const onDisk = path.join(audio, file);
     if (fs.existsSync(onDisk)) {
       check(fs.statSync(onDisk).size > 3000, `${step}'s sting is real audio`);
+    }
+  }
+  /*
+   * Take 1 is kept rather than overwritten. Judging a sound is done by ear and
+   * by swapping back and forth, which needs both of them on disk — so the old
+   * set staying put is the point, not clutter to be tidied away.
+   */
+  for (const step of NIGHT_ORDER) {
+    const first = path.join(audio, soundFile(`sting_${step}`, 1));
+    if (fs.existsSync(path.join(audio, stingFile(step)))) {
+      check(fs.existsSync(first), `${step}'s original sting is still there to fall back to`);
     }
   }
 

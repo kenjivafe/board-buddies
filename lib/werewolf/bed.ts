@@ -30,13 +30,45 @@ import {
  * file, the browser may refuse to start an AudioContext, decoding may fail —
  * the night still has to run.
  */
+/** A one-shot, and how far into it the sound actually starts. */
+interface Clip {
+  buffer: AudioBuffer;
+  /** seconds of near-silence before the transient */
+  lead: number;
+}
+
+/**
+ * Find the hit.
+ *
+ * A generated clip does not reliably begin at sample zero — most of the role
+ * stings start within a few milliseconds, but one of them sits nearly a
+ * seventh of a second in. Starting the *file* on the bar line therefore puts
+ * the *sound* wherever the generator felt like leaving it, which defeats the
+ * entire point of having a grid. Measured rather than tabulated, because a
+ * table of nine offsets is nine numbers that go stale the next time anything
+ * is recut.
+ */
+export function leadIn(buffer: AudioBuffer): number {
+  const d = buffer.getChannelData(0);
+  let peak = 0;
+  for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]));
+  if (peak <= 0) return 0;
+  const floor = peak * 0.08;
+  for (let i = 0; i < d.length; i++) {
+    if (Math.abs(d[i]) < floor) continue;
+    // back off a touch, so the very front of the transient is not clipped off
+    return Math.max(0, i / buffer.sampleRate - 0.004);
+  }
+  return 0;
+}
+
 export class NightBed {
   private ctx: AudioContext | null = null;
   private out: GainNode | null = null;
   private source: AudioBufferSourceNode | null = null;
   private loop: AudioBuffer | null = null;
   private loading: Promise<AudioBuffer | null> | null = null;
-  private clips = new Map<string, Promise<AudioBuffer | null>>();
+  private clips = new Map<string, Promise<Clip | null>>();
   /** the audio-clock time at which buffer position zero played */
   private originAt = 0;
   private ducked = false;
@@ -224,26 +256,33 @@ export class NightBed {
       }
       return;
     }
-    let pending = this.clips.get(url);
-    if (!pending) {
-      pending = this.decode(url);
-      this.clips.set(url, pending);
-    }
-    const buf = await pending;
-    if (!buf) return;
+    const clip = await this.clip(url);
+    if (!clip) return;
     const src = ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = clip.buffer;
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g).connect(ctx.destination);
     // a scheduled time that has already gone by means "now" to start()
-    src.start(at !== undefined && at > ctx.currentTime ? at : ctx.currentTime);
+    const when = at !== undefined && at > ctx.currentTime ? at : ctx.currentTime;
+    // skip the quiet head, so it is the hit that lands on the line, not the file
+    src.start(when, clip.lead);
+  }
+
+  private clip(url: string): Promise<Clip | null> {
+    let pending = this.clips.get(url);
+    if (!pending) {
+      pending = this.decode(url).then((buffer) =>
+        buffer ? { buffer, lead: leadIn(buffer) } : null
+      );
+      this.clips.set(url, pending);
+    }
+    return pending;
   }
 
   /** Get the fetch and decode out of the way before the moment it is needed. */
   warm(url: string) {
-    if (this.clips.has(url)) return;
-    this.clips.set(url, this.decode(url));
+    void this.clip(url);
   }
 
   dispose() {

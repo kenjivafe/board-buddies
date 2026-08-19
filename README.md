@@ -253,11 +253,13 @@ npx tsx scripts/generate-voices.ts --redo=werewolf/moderator # recast the narrat
 
 A missing file is **silence by design** — the game is fully playable before anybody has run the script, and stays playable if a clip fails to load.
 
-#### One voice per table
+#### Rooms read the script too
 
 Rooms used to be silent, and that was wrong. The night only reached the one device it woke, with no sound and no buzz, so a table could sit on "the village sleeps" with no idea whose turn it was or whether the game was even alive.
 
-**A room has one voice now, and it is the host's.** Every handset reading the script would talk over the others, and a phone that speaks only when *its own owner* is wanted announces that owner to everybody sitting near it. So [RoomNarrator.tsx](components/werewolf/RoomNarrator.tsx) runs on the host's device and nobody else's — exactly as if a person were running the game — while each player's own screen quietly holds whatever is private to them.
+**Every device reads the script now**, via [RoomNarrator.tsx](components/werewolf/RoomNarrator.tsx), while each player's own screen quietly holds whatever is private to them. The obvious worry — that a phone speaking only when *its own owner* is wanted would announce that owner to the room — doesn't apply, precisely because every phone reads every line: `narrate` is public and every role in the box is called, so all of them have the same thing to say at the same moment.
+
+Running it on the host's device alone was tried first and was wrong for the same reason silence was: it assumes the whole table is within earshot of one handset that happens to be face up, and anybody playing over a call heard nothing. Each player has their own mute instead, so a table sitting together can silence all but one. **Pacing** stays the host's alone, though — reading the night aloud and driving it along are separate jobs, and only one device can do the second.
 
 That forced the night to change shape, in **both** modes. **Every role in the box is called**, whether or not anybody was dealt it: skipping the ones that landed in the middle announced which roles are in the middle, which is most of what the table is trying to work out. A role nobody holds has nobody to answer for it, so once its line has been read and given its beat the pacing device sends a `TICK` — and the reducer moves on *only if that step really was empty*, which is how the pacer is never told which ones were. A role somebody does hold ends its own step by acting, and the next line doesn't start until it has.
 

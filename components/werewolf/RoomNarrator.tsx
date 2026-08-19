@@ -10,28 +10,36 @@ import { STING_LEAD_MS } from "@/lib/werewolf/ambience";
 import { MuteButton, useNarrator, useScene } from "./useNarrator";
 
 /**
- * One phone speaks for the table.
+ * The script, read on every device.
  *
- * A room has one moderator's voice, not one per device: every handset reading
- * the script would talk over the others, and a phone that speaks only when its
- * own owner is wanted announces that owner to everybody sitting near it. So the
- * host's device narrates and nobody else's makes a sound, exactly as if a
- * person were running the game — while each player's own screen quietly holds
- * whatever is private to them.
+ * The obvious worry — that a phone which speaks only when *its own* owner is
+ * wanted would announce that owner to the room — does not apply, because every
+ * phone reads every line. `narrate` is public and every role in the box is
+ * called whether or not anybody holds it, so all of them have exactly the same
+ * thing to say at the same moment and none of them says anything about whoever
+ * is holding it.
  *
- * It paces the night as well as reading it. Every role in the box is called,
- * so a role nobody was dealt has nobody to answer for it; after the line has
- * been said and given its beat, this sends a tick and the reducer moves on —
- * but only if that step really was empty, so the host is never told which ones
- * were. A role somebody *does* hold ends its own step by acting, and the next
- * line does not start until it has.
+ * Running it only on the host's device was the wrong default: it assumes the
+ * whole table is within earshot of one handset that happens to be face up.
+ * Anybody playing over a call heard nothing at all. Each player has their own
+ * mute, so a table sitting together can silence all but one.
+ *
+ * `paces` is separate, and is the host's alone — one device drives the state.
+ * Every role in the box is called, so a role nobody was dealt has nobody to
+ * answer for it; once its line has been read and given its beat, the pacer
+ * ticks and the reducer moves on — but only if that step really was empty, so
+ * the pacer is never told which ones were. A role somebody *does* hold ends
+ * its own step by acting, and the next line waits for it.
  */
 export default function RoomNarrator({
   view,
   dispatch,
+  paces,
 }: {
   view: OnuwView;
   dispatch: React.Dispatch<Action>;
+  /** host only: drive the night along, as distinct from reading it aloud */
+  paces: boolean;
 }) {
   const { say, sting } = useNarrator();
   const spoken = useRef<NightStep | null>(null);
@@ -68,13 +76,16 @@ export default function RoomNarrator({
     /*
      * And then a tick, which does nothing at all unless the step turned out to
      * wake nobody. Sent blind on purpose: if this waited on "is anyone awake?"
-     * the host's phone would know which roles were in the middle.
+     * the pacer's phone would know which roles were in the middle. Only one
+     * device sends it, or they would trip over each other.
      */
-    after(lead + STING_LEAD_MS + BEAT_SECONDS * 1000, () => dispatch({ type: "TICK" }));
+    if (paces) {
+      after(lead + STING_LEAD_MS + BEAT_SECONDS * 1000, () => dispatch({ type: "TICK" }));
+    }
 
     return clear;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, view.phase]);
+  }, [step, view.phase, paces]);
 
   // the last line of the script, once the night has run out
   useEffect(() => {

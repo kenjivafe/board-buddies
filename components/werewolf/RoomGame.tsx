@@ -55,12 +55,10 @@ export default function RoomGame({ code }: { code: string }) {
         return (
           <NarratorProvider>
             <Sky time={skyFor(view)} />
-            {/* one voice for the table, and it is the host's */}
-            {room.isHost && (
-              <div className="game-bar">
-                <RoomNarrator view={view} dispatch={send} />
-              </div>
-            )}
+            {/* every device reads the script; only the host's paces the night */}
+            <div className="game-bar">
+              <RoomNarrator view={view} dispatch={send} paces={room.isHost} />
+            </div>
             {/*
               Listed rather than defaulted. `day` used to be the else-branch,
               so a room that ended up anywhere unexpected — a deal that had not

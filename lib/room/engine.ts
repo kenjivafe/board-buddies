@@ -232,6 +232,13 @@ const kingsCup: Adapter = {
  * The deal exists only because a shared phone has to be handed round. On
  * separate devices the card you were dealt simply sits on your own screen all
  * game, so the round is walked through here rather than rendered.
+ *
+ * Applied to everything this adapter hands back, not just the opening state:
+ * RESTART deals again through START and lands here too. Skipping it there left
+ * the room sitting in `deal` with no legal action to escape by — DEAL_NEXT is
+ * exactly what rooms refuse — so "deal again" dropped every device onto the
+ * day screen and then rejected the vote. Coup's adapter has the same guard for
+ * the same reason.
  */
 function skipOnuwDeal(state: OnuwState): OnuwState {
   let next = state;
@@ -336,7 +343,7 @@ const werewolf: Adapter = {
         throw new RoomError("bad-action", "Unknown action.", 400);
     }
 
-    return wwReducer(state, action);
+    return skipOnuwDeal(wwReducer(state, action));
   },
 
   view(state, viewerId) {

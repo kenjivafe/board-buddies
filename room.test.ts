@@ -14,7 +14,7 @@ import {
   initialState as wwInitial,
   reducer as wwReducer,
 } from "./lib/werewolf/reducer";
-import { ROLES } from "./lib/werewolf/roles";
+import { ROLES, ROLE_INFO } from "./lib/werewolf/roles";
 import type { OnuwState, Role as WwRole } from "./lib/werewolf/types";
 import { RoomError, type RoomPhase, type Seat } from "./lib/room/types";
 
@@ -539,6 +539,22 @@ function coupGame(...names: string[]): CoupState {
     ...seeded,
     slots: forced,
     players: seeded.players.map((p, i) => ({ ...p, dealt: forced[i] })),
+    // START already wrote everybody a "you were dealt the …" note for the
+    // shuffled deal it made. Forcing the seating without rewriting those left a
+    // villager holding a note naming a card they were never dealt, which made
+    // the leak check below fail about one run in six.
+    notes: Object.fromEntries(
+      seeded.players.map((p, i) => [
+        p.id,
+        [
+          {
+            step: "deal" as const,
+            text: `You were dealt the ${ROLE_INFO[forced[i]].name}.`,
+            cards: [{ role: forced[i], label: "Dealt to you" }],
+          },
+        ],
+      ])
+    ),
   } as OnuwState;
   while (state.phase === "deal") state = wwReducer(state, { type: "DEAL_NEXT" });
 
@@ -637,6 +653,34 @@ function coupGame(...names: string[]): CoupState {
     () => wolves.apply(open, { type: "VOTE", voterId: wolf, targetId: seer }, wolf, false),
     "you may point your own"
   );
+
+  /*
+   * Dealing again has to land ready to play, exactly like the opening deal.
+   * It did not: RESTART goes through START, which begins at the pass-and-peek
+   * round, and the adapter only skipped that on the way in. The room sat in
+   * `deal` with no legal action to escape by — DEAL_NEXT is what rooms refuse
+   * — so every device fell through to the day screen, and the vote it offered
+   * was then rejected as "that move isn't available right now".
+   */
+  {
+    const again = wolves.apply(live, { type: "RESTART" }, wolf, true) as OnuwState;
+    check(again.phase === "night", `a re-deal lands ready to play, not in ${again.phase}`);
+    check(again.step !== null, "a re-deal leaves a role to wake");
+    check(again.dealIndex >= again.players.length, "and the deal round is already walked through");
+    check(
+      again.players.every((p, i) => p.dealt === again.slots[i]),
+      "everybody has a fresh card"
+    );
+    // playable from there, rather than needing an action the room refuses
+    const first = actorsOf(again, again.step!)[0];
+    allows(
+      () => wolves.apply(again, { type: "WAKE_ACK", playerId: first.id }, first.id, false),
+      "the first role can act straight away after a re-deal"
+    );
+
+    const fresh = wolves.apply(live, { type: "NEW_GAME" }, wolf, true) as OnuwState;
+    check(wolves.atSetup(fresh), "and a new game hands the room back to its lobby");
+  }
 
   // the view a seated player gets is the redacted one
   const theirs = wolves.view(state, stranger) as { self: { notes: unknown[] } };

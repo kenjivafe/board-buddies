@@ -53,16 +53,22 @@ export default function RoomGame({ code }: { code: string }) {
         return (
           <>
             <Sky time={skyFor(view)} />
+            {/*
+              Listed rather than defaulted. `day` used to be the else-branch,
+              so a room that ended up anywhere unexpected — a deal that had not
+              been walked through, say — quietly rendered the argument and
+              offered a vote that the reducer then refused.
+            */}
             {view.phase === "ended" ? (
               <End view={view} dispatch={send} canControl={room.isHost} />
-            ) : view.phase === "night" ? (
+            ) : view.phase === "day" || view.phase === "vote" ? (
               <>
-                <Night view={view} dispatch={send} />
+                <Day view={view} dispatch={send} canControl={room.isHost} />
                 <YouAre view={view} />
               </>
             ) : (
               <>
-                <Day view={view} dispatch={send} canControl={room.isHost} />
+                <Night view={view} dispatch={send} />
                 <YouAre view={view} />
               </>
             )}

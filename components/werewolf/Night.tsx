@@ -16,15 +16,18 @@ import {
   BEAT_SECONDS,
   CALL,
   DAWN,
+  DAWN_HOLD_SECONDS,
   INSTRUCTION,
   LEAD_IN_SECONDS,
+  SETTLE_SECONDS,
   OPENING,
   SLEEP,
   TASK,
   TITLE,
+  callLeadMs,
   shown,
 } from "@/lib/werewolf/narration";
-import { STING_LEAD_MS } from "@/lib/werewolf/ambience";
+import { BED_BAR_SECONDS } from "@/lib/werewolf/ambience";
 import { sleepStem, wakeStem } from "@/lib/werewolf/voice";
 import { Moon, Rule, Waiting } from "./Bits";
 import { CentrePick, Notebook, PickList, Shown } from "./Table";
@@ -186,7 +189,18 @@ function Beat({
    * bed, so it is the one that holds while the wood comes up underneath.
    */
   const lead = closing === null && !dawn;
-  const [left, setLeft] = useState(lead ? LEAD_IN_SECONDS + BEAT_SECONDS : BEAT_SECONDS);
+  /*
+   * Every beat but the first opens on a role that has just acted, and comes in
+   * over the top of them if it starts talking straight away. So the dark holds
+   * before the script picks up — longer at dawn, where the last role finishing
+   * is the one moment nobody is expecting to be spoken to. Done by starting the
+   * count higher rather than by delaying the audio, so the words on the screen
+   * and the words in the air stay together.
+   */
+  const hold = dawn ? DAWN_HOLD_SECONDS : SETTLE_SECONDS;
+  const [left, setLeft] = useState(
+    lead ? LEAD_IN_SECONDS + BEAT_SECONDS : hold + BEAT_SECONDS
+  );
 
   useEffect(() => {
     if (left <= 0) return;
@@ -195,39 +209,45 @@ function Beat({
   }, [left]);
 
   // the script, in two halves: one role is sent to bed as the dark falls, and
-  // the next is called when the countdown runs out
+  // the next is called a beat later
   const said = left <= BEAT_SECONDS;
-  const ready = left <= 0;
+  /**
+   * Whether the call has actually gone out.
+   *
+   * Driven by the script rather than by the countdown, because the call is held
+   * to the bed's next bar line and so does not land on a whole second. The
+   * counter is the table's cue to settle; this is the moment the role is named,
+   * and the screen has to turn on the second one or the words and the sound
+   * come apart.
+   */
+  const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    if (said) enqueue([{ line: closing ? sleepStem(closing) : "open" }]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [said, closing]);
   /*
-   * The call lands as a sound first and a sentence second. Whoever it belongs
-   * to recognises a growl or a bubbling cauldron before they have parsed a
-   * word, which is most of why the reference app feels like a game and not a
-   * menu — so the line waits a beat and comes in over the tail of it.
+   * The whole run goes in at once, in order: the last role to bed, a beat, then
+   * the call — the role's sound and its name together, dropped on a bar line.
    *
    * Queued rather than timed, so a role nobody holds is still called in full:
    * the move-along waits behind the line instead of racing it.
    */
   useEffect(() => {
-    if (!ready) return;
-    if (dawn) {
-      enqueue([{ line: "dawn" }]);
-      return;
-    }
+    if (!said) return;
     enqueue([
-      { sting: calling },
-      { pause: STING_LEAD_MS },
-      { line: wakeStem(calling) },
+      { line: closing ? sleepStem(closing) : "open" },
+      { pause: closing || lead ? callLeadMs(BED_BAR_SECONDS) : 0 },
+      dawn
+        ? { line: "dawn", onStart: () => setReady(true) }
+        : {
+            line: wakeStem(calling),
+            sting: calling,
+            bar: true,
+            onStart: () => setReady(true),
+          },
       // a role nobody holds has nobody to hand the phone to, so the night gives
       // it the same pause everyone else gets and then moves itself along
       ...(empty ? [{ pause: BEAT_SECONDS * 900 }, { then: onAwake }] : []),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, calling, empty]);
+  }, [said, calling, empty]);
 
   return (
     <section className="beat">
@@ -263,19 +283,25 @@ function Beat({
         <>
           {/* `said` means `left` is already inside the beat, so this counts
               5…1 on its own — clamping a longer lead-in into it just printed
-              "5" five times while the ring pulsed, which read as broken. */}
+              "5" five times while the ring pulsed, which read as broken. It
+              holds at 1 rather than showing 0, because the call is waiting on
+              a bar line and may be a moment behind the count. */}
           <span className="beat-count" aria-hidden>
-            {left}
+            {Math.max(1, left)}
           </span>
           <p className="hint" role="status">
             Waiting for the table to settle…
           </p>
         </>
-      ) : (
+      ) : lead ? (
         // the lead-in has nothing to count down to that the table knows about
         <p className="hint" role="status">
           Night falls over the village.
         </p>
+      ) : (
+        // the hold after somebody acts: nothing but the moon, on purpose. Any
+        // copy here would be the app filling a silence a moderator would leave
+        <p className="hint" aria-hidden />
       )}
     </section>
   );

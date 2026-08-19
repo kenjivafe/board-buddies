@@ -11,8 +11,6 @@ import {
 import { fileFor } from "@/lib/werewolf/voice";
 import {
   BED,
-  DUCK,
-  FADE_MS,
   HOWL,
   HOWL_GAP,
   ROOSTER,
@@ -20,6 +18,8 @@ import {
   stingFile,
   takeOf,
 } from "@/lib/werewolf/ambience";
+import { NightBed } from "@/lib/werewolf/bed";
+import { NIGHT_ORDER } from "@/lib/werewolf/roles";
 import type { NightStep } from "@/lib/werewolf/types";
 
 const MUTE_KEY = "werewolf:voice-muted";
@@ -29,12 +29,23 @@ const GAP_MS = 260;
 const MAX_CLIP_MS = 9000;
 
 /**
- * One thing to do in order: read a line, play a role's sound, wait, or run a
- * callback once everything before it has actually finished.
+ * One thing to do in order: read a line, wait, or run a callback once
+ * everything before it has actually finished.
+ *
+ * A line can carry a role's sting, and when it does the two go off together
+ * rather than one after the other — the sound and the name are the same event,
+ * and splitting them just made the table wonder what the first noise was.
  */
 export type Cue =
-  | { line: string }
-  | { sting: NightStep }
+  | {
+      line: string;
+      /** a role's sound, fired at the same instant as the line */
+      sting?: NightStep;
+      /** hold until the bed's next bar line, so the sting lands on the beat */
+      bar?: boolean;
+      /** run as the line begins — the screen should turn with it, not after it */
+      onStart?: () => void;
+    }
   | { pause: number }
   | { then: () => void };
 
@@ -108,40 +119,13 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
 
   // ---------- the wood, under all of it ----------
 
-  const bed = useRef<HTMLAudioElement | null>(null);
-  const ducked = useRef(false);
-  const fading = useRef<number | undefined>(undefined);
+  const bed = useRef<NightBed | null>(null);
+  const wood = () => (bed.current ??= new NightBed());
   const howlTimer = useRef<number | undefined>(undefined);
 
-  /** Slide the bed to a level over FADE_MS, and stop it if that level is zero. */
-  const fadeTo = useCallback((target: number, ms = FADE_MS) => {
-    const el = bed.current;
-    if (!el) return;
-    window.clearInterval(fading.current);
-    const from = el.volume;
-    const started = Date.now();
-    fading.current = window.setInterval(() => {
-      const t = Math.min(1, (Date.now() - started) / ms);
-      el.volume = Math.max(0, Math.min(1, from + (target - from) * t));
-      if (t < 1) return;
-      window.clearInterval(fading.current);
-      if (target === 0) {
-        el.pause();
-        el.currentTime = 0;
-      }
-    }, 50);
+  const duck = useCallback((on: boolean) => {
+    bed.current?.duck(on, BED.gain);
   }, []);
-
-  const level = () => (ducked.current ? BED.gain * DUCK : BED.gain);
-
-  const duck = useCallback(
-    (on: boolean) => {
-      if (ducked.current === on) return;
-      ducked.current = on;
-      if (bed.current && !bed.current.paused) fadeTo(level(), 450);
-    },
-    [fadeTo]
-  );
 
   /** One howl, somewhere out there, then another after a while. */
   const scheduleHowl = useCallback(() => {
@@ -149,7 +133,7 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     const [lo, hi] = HOWL_GAP;
     howlTimer.current = window.setTimeout(
       () => {
-        if (!mutedRef.current && bed.current && !bed.current.paused) {
+        if (!mutedRef.current && bed.current?.playing) {
           const howl = new Audio(takeOf(HOWL));
           howl.volume = HOWL.gain;
           void howl.play().catch(() => {});
@@ -222,24 +206,52 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     }
     if (mutedRef.current) {
       // muted still has to take its time, or a silent table races the game
-      window.setTimeout(next, "sting" in cue ? 400 : 1200);
+      cue.onStart?.();
+      window.setTimeout(next, 1200);
       return;
     }
-    if ("sting" in cue) {
-      duck(true);
-      playOnce(stingFile(cue.sting), STING_GAIN, next);
-      return;
-    }
+
     const src = fileFor(cue.line);
-    if (!src) {
+    const sting = cue.sting ? stingFile(cue.sting) : null;
+    if (!src && !sting) {
+      cue.onStart?.();
       next();
       return;
     }
-    duck(true);
-    playOnce(src, 1, () => {
-      duck(false);
-      window.setTimeout(next, GAP_MS);
-    });
+    // the fetch and decode want to be over with before the moment it is due
+    if (sting) wood().warm(sting);
+
+    /** the sound and the name, together, optionally at an exact moment */
+    const fire = (at?: number) => {
+      cue.onStart?.();
+      duck(true);
+      if (sting) void wood().hit(sting, STING_GAIN, at);
+      if (!src) {
+        // a call with no line cut yet is still an event; give it its moment
+        window.setTimeout(() => {
+          duck(false);
+          next();
+        }, 900);
+        return;
+      }
+      playOnce(src, 1, () => {
+        duck(false);
+        window.setTimeout(next, GAP_MS);
+      });
+    };
+
+    /*
+     * Put the call on a bar line. A hand drum landing across the beat sounds
+     * like a mistake and the same sample on the beat sounds composed, and the
+     * bed is a metronome we already know the tempo of.
+     *
+     * The wait for the line is up to a whole bar, so whoever queued this took a
+     * half-bar off their own pause to pay for it — see CALL_LEAD_MS. With no
+     * bed to be in time with, this is simply skipped.
+     */
+    const grid = cue.bar ? wood().nextBar(0) : null;
+    if (grid) window.setTimeout(() => fire(grid.at), grid.delayMs);
+    else fire();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playOnce]);
 
@@ -257,17 +269,9 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     (scene: "night" | "day" | "off") => {
       if (scene === "night") {
         if (mutedRef.current) return;
-        const el = bed.current ?? new Audio(takeOf(BED));
-        bed.current = el;
-        el.loop = true;
-        if (el.paused) {
-          el.volume = 0;
-          void el.play().then(
-            () => fadeTo(level()),
-            // autoplay refused, or no file cut yet — the night is just quiet
-            () => {}
-          );
-        }
+        void wood().start(BED.gain);
+        // the stings want to be decoded and waiting, not fetched on the beat
+        for (const step of NIGHT_ORDER) wood().warm(stingFile(step));
         scheduleHowl();
         return;
       }
@@ -279,9 +283,10 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
         void bird.play().catch(() => {});
       }
       // morning cuts the wood off rather than letting it run under the argument
-      fadeTo(0, scene === "day" ? 900 : 300);
+      bed.current?.stop(scene === "day" ? 900 : 300);
     },
-    [fadeTo, scheduleHowl]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scheduleHowl]
   );
 
   const toggle = useCallback(() => {
@@ -298,19 +303,18 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
         // move the night along, and dropping them would strand the table
         audio.current?.pause();
         window.clearTimeout(howlTimer.current);
-        fadeTo(0, 300);
+        bed.current?.stop(300);
       }
       return next;
     });
-  }, [fadeTo]);
+  }, []);
 
   // nothing should outlive the game it belongs to
   useEffect(
     () => () => {
       audio.current?.pause();
-      bed.current?.pause();
+      bed.current?.dispose();
       window.clearTimeout(howlTimer.current);
-      window.clearInterval(fading.current);
     },
     []
   );

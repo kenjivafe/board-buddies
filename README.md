@@ -271,16 +271,39 @@ Under the voice there are three more layers, declared in [ambience.ts](lib/werew
 
 - **The bed** — a 45-second loop of slow tribal drums over crickets. It comes up when the night actually falls (not during the deal, which happens with everyone awake), holds for `LEAD_IN_SECONDS` before the moderator says a word, ducks to a third of its level whenever she speaks, and is cut off by the cockerel at dawn rather than fading out under the argument. The first attempt was a forest atmosphere and it was wallpaper — a night that runs five minutes needs a pulse under it, not weather.
 - **Howls**, dropped over the top at a random interval inside `HOWL_GAP`, in three takes so the same one never lands twice running.
-- **A sting per role**, played the moment it is called and `STING_LEAD_MS` *before* the line starts. This is most of why the reference app feels like a game rather than a menu: whoever the growl or the bubbling cauldron belongs to knows it is them a beat before they are told. Each one is a thing that role does — stone on stone for the Masons, coins in a purse for the Robber, a ticking clock for the Insomniac.
+- **A sting per role**, fired at the same instant the role is named. Each one is a thing that role does — stone on stone for the Masons, coins in a purse for the Robber, a ticking clock for the Insomniac — and it is most of why the reference app feels like a game rather than a menu. It used to lead the line by a second, which mostly made the table wonder what the first noise was.
+
+#### The bar line
+
+The bed is played through Web Audio rather than a looping `<audio>` element, in [bed.ts](lib/werewolf/bed.ts), for two reasons that are really one: an element cannot be trusted with time. It re-primes its decoder at the wrap, which you hear as a hole in the drums once every forty-five seconds, and it cannot tell you where in the bar it is.
+
+[analyse-bed.ts](scripts/analyse-bed.ts) settles the second part offline. It decodes the file, builds a low-band onset track, and combs it for the strongest steady pulse — which came back at exactly **70.0 bpm** with the first downbeat 0.4615s in, because the model took the tempo in the generation prompt literally. Two things are built on that:
+
+- The buffer is **trimmed to thirteen whole bars** from that downbeat, so the loop wraps where a bar line would have fallen anyway instead of at the end of the file. The two ends are crossfaded over whatever material is left past the last bar — a couple of milliseconds, which is ample: the join is three thousandths out against transients thirty times bigger. The fade is clamped to what actually exists, because a window longer than the leftover tail runs out of partner halfway through and puts a step in the middle of the fix.
+- Each call is **held to the next bar line** (`bar: true` on the cue). A hand drum landing across the beat sounds like a mistake; the same sample on the beat sounds composed. That wait is up to a whole bar, so `callLeadMs` takes half a bar off the pause in front of it — the call still lands `BEAT_SECONDS` after the last line *on average*, just nudged onto the grid rather than across it.
+
+Re-run the script if the bed is ever recut. Nothing breaks when the numbers drift; the seam just stops landing on a bar, and it stops being worth the trouble.
 
 ```bash
 npx tsx scripts/generate-sfx.ts --dry   # what it would cut
 npx tsx scripts/generate-sfx.ts         # cut what's missing
 ```
 
-Separate from the voice script on purpose, and it talks to **two** endpoints: the bed is composed music (`/v1/music`), because the sound-effects model makes atmospheres and not rhythms, and everything else is `/v1/sound-generation`. Both need permissions a text-to-speech key doesn't have, so the script catches the 401 and says which one is missing rather than dumping the raw error. As everywhere else in the audio layer, until the files exist the night is simply quiet. The narrator is one-phone only: a room has no shared speaker, every device would read over the others, and half of what they read would be calling roles that particular phone is not allowed to know about. So rooms never mount the provider and `useNarrator` hands them one that says nothing, which is why the night screens can call `say()` without caring which mode they're in. There's a mute toggle on every screen the narrator speaks from, and the choice sticks.
+Separate from the voice script on purpose, and it talks to **two** endpoints: the bed is composed music (`/v1/music`), because the sound-effects model makes atmospheres and not rhythms, and everything else is `/v1/sound-generation`. Both need permissions a text-to-speech key doesn't have, so the script catches the 401 and says which one is missing rather than dumping the raw error. As everywhere else in the audio layer, until the files exist the night is simply quiet. There's a mute toggle on every screen the narrator speaks from, and the choice sticks.
 
-Rooms skip all of this. Nothing is passed and nothing is overheard, so a beat would only be dead time: your own device wakes you when you're wanted and says nothing when you aren't. [Night.tsx](components/werewolf/Night.tsx) keeps the two as separate functions rather than one screen with a flag, because they are genuinely different experiences.
+#### One queue, and waiting for it
+
+Everything the moderator says goes through a single queue in [useNarrator.tsx](components/werewolf/useNarrator.tsx). A cue is a line, a pause, or a callback, and each waits for the one before it to *actually* finish — an `ended` event, an error, a `play()` the browser refused, and a watchdog behind all three, because media events are best-effort and one missed event strands the rest of the script.
+
+There is deliberately no second way to make a sound. There used to be a one-shot `say` beside the queue, and two things that could both start audio meant the script talked over itself the moment the game moved quicker than the voice — which is exactly what a table that answers in a second, or a role nobody was dealt, makes it do.
+
+The callback cue is what makes a role nobody holds work. Skipping it would tell the table the card is in the middle, so it is called like any other; the `TICK` that carries the night past it sits at the *back of the queue* rather than on a stopwatch, so the call is read out in full first.
+
+Rooms read the same script on **every** device. The obvious worry — that a phone speaking only when its own owner is wanted would announce that owner — does not apply, because every phone reads every line: `narrate` is public and every role in the box is called whether or not anybody holds it, so all of them have the same thing to say at the same moment. Running it on the host's handset alone was the wrong default; it assumes the whole table is within earshot of one phone that happens to be face up, and anybody playing over a call heard nothing. Pacing is still the host's alone — one device drives the state.
+
+And in a room your screen **waits for your call**. The state moves the instant the previous role acts, so a prompt that appeared with it let a quick player answer before the moderator had said a word; the next call then queued behind a line still playing, and a few roles in, the voice was a whole turn behind the table. Now the prompt arrives when the voice does, which is the rule the one-phone night already played by. A generous backstop releases it regardless, since audio failing in a way nothing catches must never strand a player.
+
+[Night.tsx](components/werewolf/Night.tsx) still keeps the two modes as separate functions rather than one screen with a flag, because they are genuinely different experiences: one phone has a beat between roles and a handover, and a room has neither.
 
 #### Card art
 

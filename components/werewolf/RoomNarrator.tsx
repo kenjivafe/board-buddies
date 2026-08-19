@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { BEAT_SECONDS } from "@/lib/werewolf/narration";
+import {
+  BEAT_SECONDS,
+  DAWN_HOLD_SECONDS,
+  SETTLE_SECONDS,
+  callLeadMs,
+} from "@/lib/werewolf/narration";
 import type { Action } from "@/lib/werewolf/reducer";
 import type { NightStep } from "@/lib/werewolf/types";
 import type { OnuwView } from "@/lib/werewolf/view";
 import { sleepStem, wakeStem } from "@/lib/werewolf/voice";
-import { STING_LEAD_MS } from "@/lib/werewolf/ambience";
+import { BED_BAR_SECONDS } from "@/lib/werewolf/ambience";
 import { MuteButton, useNarrator, useScene } from "./useNarrator";
 
-/** longer than the call can possibly take; see the backstop below */
-const BACKSTOP_MS = 25_000;
+/**
+ * Longer than the call can possibly take — see the backstop below.
+ *
+ * Generous on purpose. It is measured against the worst case, where every clip
+ * has to fall back on its watchdog rather than reporting that it ended, and it
+ * only ever matters when the audio has failed in a way nothing else catches.
+ * Firing it early would cut a line off; firing it late costs a broken table a
+ * few seconds once.
+ */
+const BACKSTOP_MS = 45_000;
 
 /**
  * The script, read on every device.
@@ -82,11 +95,16 @@ export default function RoomNarrator({
     const still = () => live.current === step;
 
     enqueue([
-      ...(closing ? [{ line: sleepStem(closing) }] : []),
-      { pause: closing ? BEAT_SECONDS * 1000 : 0 },
-      { sting: step },
-      { pause: STING_LEAD_MS },
-      { line: wakeStem(step) },
+      // a beat first: the state moved because somebody just acted, and the
+      // script coming straight back over them is what makes a fast table feel
+      // hurried along
+      ...(closing
+        ? [{ pause: SETTLE_SECONDS * 1000 }, { line: sleepStem(closing) }]
+        : []),
+      { pause: closing ? callLeadMs(BED_BAR_SECONDS) : 0 },
+      // the role's sound and its name at the same instant, dropped on the bed's
+      // next bar line rather than wherever the queue happened to arrive
+      { line: wakeStem(step), sting: step, bar: true },
       // and only now does whoever holds it get a screen to act on
       { then: () => still() && onCalled(step) },
       /*
@@ -133,7 +151,14 @@ export default function RoomNarrator({
     live.current = null;
     window.clearTimeout(backstop.current);
     onCalled(null);
-    enqueue([{ line: sleepStem(last) }, { pause: 700 }, { line: "dawn" }]);
+    // the last role finishing is the one moment nobody is expecting to be
+    // spoken to, so the night hangs before the table is woken
+    enqueue([
+      { pause: SETTLE_SECONDS * 1000 },
+      { line: sleepStem(last) },
+      { pause: DAWN_HOLD_SECONDS * 1000 },
+      { line: "dawn" },
+    ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.phase]);
 

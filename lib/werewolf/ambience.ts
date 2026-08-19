@@ -124,15 +124,42 @@ export const WAKE_CUE: SoundSpec = {
 
 export const SOUNDS: SoundSpec[] = [BED, HOWL, ROOSTER, WAKE_CUE, ...STINGS];
 
+/**
+ * The bed's pulse, measured from the file rather than assumed from the prompt.
+ *
+ * `scripts/analyse-bed.ts` decodes night_01.mp3, builds a low-band onset track
+ * and combs it for the strongest steady pulse. It came back at exactly 70.0 bpm
+ * with the first downbeat 0.4615s in — the model took the tempo in the prompt
+ * literally, which is the only reason any of the rest of this is possible.
+ *
+ * Two things are built on it. The bed loops on a bar line instead of at the end
+ * of the file, so the seam lands where a bar would have anyway; and each role's
+ * sting is scheduled onto the grid rather than whenever the queue reaches it,
+ * so it drops on the beat instead of across it.
+ *
+ * Re-run the script if the bed is ever recut. Nothing breaks if these drift —
+ * the seam just stops landing on a bar — but it stops being worth the trouble.
+ */
+export const BED_BPM = 70;
+export const BED_BEAT_SECONDS = 60 / BED_BPM;
+/** 4/4, per the analysis: the downbeat comb scored highest at four. */
+export const BED_BAR_SECONDS = BED_BEAT_SECONDS * 4;
+/** Where the first downbeat sits in the decoded file. */
+export const BED_FIRST_DOWNBEAT = 0.4615;
+/** Whole bars between that downbeat and the end of the file. */
+export const BED_LOOP_BARS = 13;
+/**
+ * The splice is on a bar line but not on a zero crossing, so the two ends are
+ * blended to keep it from clicking. A maximum, not a promise: the fade can only
+ * be as long as the material left over past the last whole bar, which for the
+ * current cut is about two milliseconds. That is still ample — the join is
+ * three thousandths out against transients thirty times bigger.
+ */
+export const BED_SEAM_SECONDS = 0.02;
+
 /** How long to wait between howls, in ms. Random inside this range. */
 export const HOWL_GAP: [number, number] = [22_000, 55_000];
 
-/**
- * How long the sting gets to itself before the moderator speaks over it. Long
- * enough to register as its own event, short enough that the night doesn't
- * stall on a sound effect.
- */
-export const STING_LEAD_MS = 1100;
 
 /** The bed drops to this fraction of its gain while the moderator is talking. */
 export const DUCK = 0.3;

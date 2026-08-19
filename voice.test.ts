@@ -15,17 +15,29 @@ import { freshCues, primeFrom, VARIANTS, LINES as coupLinesFor } from "./lib/cou
 import { NIGHT_ORDER } from "./lib/werewolf/roles";
 import {
   BED,
+  BED_BAR_SECONDS,
+  BED_BPM,
+  BED_FIRST_DOWNBEAT,
+  BED_LOOP_BARS,
   DUCK,
   HOWL,
   HOWL_GAP,
   SOUNDS,
-  STING_LEAD_MS,
   soundFile,
   wakeFile,
   stingFile,
   takeOf,
 } from "./lib/werewolf/ambience";
-import { CALL, DAWN, OPENING, SLEEP, WAKE, shown } from "./lib/werewolf/narration";
+import {
+  BEAT_SECONDS,
+  CALL,
+  DAWN,
+  OPENING,
+  SLEEP,
+  WAKE,
+  callLeadMs,
+  shown,
+} from "./lib/werewolf/narration";
 import {
   STEMS,
   VOICE_ID,
@@ -517,7 +529,7 @@ for (const b of BLOCKS) {
   check(DUCK > 0 && DUCK < 1, "the bed ducks under the moderator rather than stopping");
   check(HOWL_GAP[0] < HOWL_GAP[1], "howls land somewhere inside a range, not on a metronome");
 
-  // every role arrives on its own sound, before it is called by name
+  // every role arrives on its own sound, at the moment it is named
   for (const step of NIGHT_ORDER) {
     const file = stingFile(step);
     check(SOUNDS.some((s) => soundFile(s.stem) === file), `${step} has a sting in the manifest`);
@@ -526,7 +538,26 @@ for (const b of BLOCKS) {
       check(fs.statSync(onDisk).size > 3000, `${step}'s sting is real audio`);
     }
   }
-  check(STING_LEAD_MS > 0, "the sting gets a beat to itself before the line starts");
+
+  /*
+   * The bar grid the stings are dropped on. These come out of
+   * scripts/analyse-bed.ts rather than out of the air, and the loop is only
+   * seamless while they match the file — so this is a reminder to re-run it,
+   * not a claim that any particular tempo is correct.
+   */
+  check(BED_BPM > 0 && BED_LOOP_BARS > 0, "the bed has a measured tempo and a whole-bar loop");
+  check(
+    BED_FIRST_DOWNBEAT + BED_LOOP_BARS * BED_BAR_SECONDS <= BED.seconds + 0.5,
+    `the ${BED_LOOP_BARS}-bar loop fits inside the ${BED.seconds}s the bed was cut at`
+  );
+  check(
+    callLeadMs(BED_BAR_SECONDS) + BED_BAR_SECONDS * 1000 > BEAT_SECONDS * 1000,
+    "waiting for a bar line can only ever lengthen the beat between roles, never shorten it below it"
+  );
+  check(
+    callLeadMs(BED_BAR_SECONDS) + BED_BAR_SECONDS * 500 === BEAT_SECONDS * 1000,
+    "and on average it lands exactly on the beat the table is used to"
+  );
 
   for (const spec of SOUNDS) {
     for (let v = 1; v <= spec.variants; v++) {

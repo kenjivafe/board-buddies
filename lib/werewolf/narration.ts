@@ -32,6 +32,37 @@ export const BEAT_SECONDS = 5;
  */
 export const LEAD_IN_SECONDS = 5;
 
+/**
+ * The pause between somebody acting and the moderator picking the script back
+ * up.
+ *
+ * A role can be done in a second — the Insomniac only has to look — and the
+ * script would come straight back over the top of them. A person moderating
+ * lets the hand go back down first; without this beat the game feels like it
+ * is hurrying the table along.
+ */
+export const SETTLE_SECONDS = 2;
+
+/**
+ * And a longer one before the table is woken.
+ *
+ * The last role finishing is the one moment nobody is expecting anything, so
+ * "Everyone... wake up" landing on the heels of it is the most jarring line in
+ * the game. The night gets to hang for a moment first.
+ */
+export const DAWN_HOLD_SECONDS = 4;
+
+/**
+ * The pause before a call, shortened by half a bar.
+ *
+ * The call itself is held to the bed's next bar line, which adds anything from
+ * nothing to a whole bar. Taking half a bar off up front means it still lands
+ * BEAT_SECONDS after the last line on average — the beat the table is used to,
+ * just nudged onto the grid instead of across it.
+ */
+export const callLeadMs = (barSeconds: number): number =>
+  Math.max(0, BEAT_SECONDS * 1000 - (barSeconds * 1000) / 2);
+
 export const OPENING = "Everyone... close your eyes.";
 
 /** The summons. Short, because it is the line the whole table hears. */

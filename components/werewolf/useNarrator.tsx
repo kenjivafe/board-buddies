@@ -23,16 +23,41 @@ import {
 import type { NightStep } from "@/lib/werewolf/types";
 
 const MUTE_KEY = "werewolf:voice-muted";
+/** a breath between lines, so a run of them does not trample itself */
+const GAP_MS = 260;
+/** fallback when a clip duration is unknown, so the queue cannot wedge */
+const MAX_CLIP_MS = 9000;
+
+/**
+ * One thing to do in order: read a line, play a role's sound, wait, or run a
+ * callback once everything before it has actually finished.
+ */
+export type Cue =
+  | { line: string }
+  | { sting: NightStep }
+  | { pause: number }
+  | { then: () => void };
 
 export interface Narrator {
-  /** Say a line. Cuts off whatever was being said — the script never overlaps. */
-  say: (stem: string | null) => void;
-  /** Stop talking, without changing the mute setting. */
-  hush: () => void;
+  /**
+   * Read a run of the script, waiting for each clip to end before starting the
+   * next. This is the only way to make a sound, on purpose: there used to be a
+   * one-shot `say` beside it, and two things that could both start audio meant
+   * the script could talk over itself the moment the game moved quicker than
+   * the voice — which is exactly what a fast table, or a role nobody was dealt,
+   * makes it do.
+   */
+  enqueue: (cues: Cue[]) => void;
   /** Put the wood under the night, or take it away and crow in the morning. */
   setScene: (scene: "night" | "day" | "off") => void;
-  /** The sound a role arrives on, played before it is called by name. */
-  sting: (step: NightStep) => void;
+  /**
+   * True while there is still script to get through. A room reads this to hold
+   * a role's screen back until it has actually been called: without it a quick
+   * player answers a prompt that appeared the instant the state moved, the next
+   * call queues up behind a line still being read, and by the middle of the
+   * night the voice is a role or two behind the game.
+   */
+  speaking: boolean;
   muted: boolean;
   toggle: () => void;
   /** false in a room, where there is no shared moderator to listen to */
@@ -40,10 +65,13 @@ export interface Narrator {
 }
 
 const SILENT: Narrator = {
-  say: () => {},
-  hush: () => {},
+  // a callback still has to run when nobody is listening, or a muted table
+  // would never get past a role that wakes nobody
+  enqueue: (cues) => {
+    for (const c of cues) if ("then" in c) c.then();
+  },
   setScene: () => {},
-  sting: () => {},
+  speaking: false,
   muted: true,
   toggle: () => {},
   present: false,
@@ -62,6 +90,7 @@ const Ctx = createContext<Narrator>(SILENT);
  */
 export function NarratorProvider({ children }: { children: React.ReactNode }) {
   const [muted, setMuted] = useState(false);
+  /** whatever the queue is playing right now, so muting can cut it off */
   const audio = useRef<HTMLAudioElement | null>(null);
   const mutedRef = useRef(false);
 
@@ -75,14 +104,6 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     }
     setMuted(saved);
     mutedRef.current = saved;
-  }, []);
-
-  const hush = useCallback(() => {
-    const el = audio.current;
-    if (!el) return;
-    el.pause();
-    // a paused element resumes where it stopped; the script never wants that
-    el.currentTime = 0;
   }, []);
 
   // ---------- the wood, under all of it ----------
@@ -139,16 +160,98 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  // ---------- the script, one thing at a time ----------
+
+  const queue = useRef<Cue[]>([]);
+  const reading = useRef(false);
+  const [speaking, setSpeaking] = useState(false);
+
   /**
-   * The sound a role arrives on. Its own element, so it rings on underneath
-   * the line that follows it rather than being cut off by it.
+   * Plays one clip and calls back when it has actually finished.
+   *
+   * Media events are best-effort, so every route out has to reach `done`
+   * exactly once: a clip that ends, a file that is missing, a play() the
+   * browser refuses, and a watchdog behind all three. Coup's voice queue
+   * learnt this the hard way — one missed event and the rest of the script
+   * sits there forever.
    */
-  const sting = useCallback((step: NightStep) => {
-    if (mutedRef.current) return;
-    const clip = new Audio(stingFile(step));
-    clip.volume = STING_GAIN;
-    void clip.play().catch(() => {});
+  const playOnce = useCallback((src: string, volume: number, done: () => void) => {
+    const el = new Audio(src);
+    el.volume = volume;
+    audio.current = el;
+    let moved = false;
+    let watchdog = 0;
+    const finish = () => {
+      if (moved) return;
+      moved = true;
+      window.clearTimeout(watchdog);
+      done();
+    };
+    el.onended = finish;
+    el.onerror = finish;
+    void el.play().then(
+      () => {
+        const known = Number.isFinite(el.duration) && el.duration > 0;
+        watchdog = window.setTimeout(finish, known ? el.duration * 1000 + 600 : MAX_CLIP_MS);
+      },
+      finish
+    );
   }, []);
+
+  const drain = useCallback(() => {
+    if (reading.current) return;
+    const cue = queue.current.shift();
+    if (!cue) {
+      setSpeaking(false);
+      return;
+    }
+    reading.current = true;
+    const next = () => {
+      reading.current = false;
+      drain();
+    };
+
+    if ("then" in cue) {
+      cue.then();
+      next();
+      return;
+    }
+    if ("pause" in cue) {
+      window.setTimeout(next, cue.pause);
+      return;
+    }
+    if (mutedRef.current) {
+      // muted still has to take its time, or a silent table races the game
+      window.setTimeout(next, "sting" in cue ? 400 : 1200);
+      return;
+    }
+    if ("sting" in cue) {
+      duck(true);
+      playOnce(stingFile(cue.sting), STING_GAIN, next);
+      return;
+    }
+    const src = fileFor(cue.line);
+    if (!src) {
+      next();
+      return;
+    }
+    duck(true);
+    playOnce(src, 1, () => {
+      duck(false);
+      window.setTimeout(next, GAP_MS);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playOnce]);
+
+  const enqueue = useCallback(
+    (cues: Cue[]) => {
+      if (cues.length === 0) return;
+      queue.current = [...queue.current, ...cues];
+      setSpeaking(true);
+      drain();
+    },
+    [drain]
+  );
 
   const setScene = useCallback(
     (scene: "night" | "day" | "off") => {
@@ -181,29 +284,6 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     [fadeTo, scheduleHowl]
   );
 
-  const say = useCallback(
-    (stem: string | null) => {
-      if (mutedRef.current || !stem) return;
-      const src = fileFor(stem);
-      if (!src) return;
-
-      const el = audio.current ?? new Audio();
-      audio.current = el;
-      el.pause();
-      el.src = src;
-      // the wood drops back while the moderator is talking, and comes up again
-      // when the line ends — or when it doesn't, because the file is missing
-      duck(true);
-      el.onended = () => duck(false);
-      el.onerror = () => duck(false);
-      // a missing file is silence by design — the lines are generated
-      // separately, and the game has to work before anybody has run the script
-      void el.play().catch(() => duck(false));
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
-
   const toggle = useCallback(() => {
     setMuted((was) => {
       const next = !was;
@@ -214,8 +294,9 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
         /* private browsing — the choice just won't stick */
       }
       if (next) {
+        // cut the line short, but leave the queue alone: its callbacks are what
+        // move the night along, and dropping them would strand the table
         audio.current?.pause();
-        if (audio.current) audio.current.currentTime = 0;
         window.clearTimeout(howlTimer.current);
         fadeTo(0, 300);
       }
@@ -235,7 +316,7 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <Ctx.Provider value={{ say, hush, setScene, sting, muted, toggle, present: true }}>
+    <Ctx.Provider value={{ enqueue, setScene, speaking, muted, toggle, present: true }}>
       {children}
     </Ctx.Provider>
   );
@@ -256,26 +337,6 @@ export function useScene(scene: "night" | "day" | "off") {
     setScene(scene);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scene]);
-}
-
-/**
- * Says a line once, when it appears. Written as a hook because every place the
- * script speaks is "this screen has this line".
- *
- * Deliberately does NOT stop on the way out. A moderator finishes the sentence
- * while the phone is being handed over; cutting the line the instant somebody
- * taps meant "Everyone... wake up" was clipped to nothing, and every call was
- * losing its second half. Overlap is not a risk, because `say` stops whatever
- * is playing before it starts the next line.
- */
-export function useLine(stem: string | null) {
-  const { say } = useNarrator();
-  useEffect(() => {
-    say(stem);
-    // keyed on the stem alone: the same line should not be said twice because
-    // something else on the screen re-rendered
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stem]);
 }
 
 /** The one control the table needs, parked out of the way. */

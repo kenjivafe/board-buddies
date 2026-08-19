@@ -55,11 +55,16 @@ export default function Night({
   view,
   dispatch,
   onDawn,
-}: Props & { onDawn?: () => void }) {
+  called,
+}: Props & {
+  onDawn?: () => void;
+  /** rooms only: the role the narrator has got as far as calling */
+  called?: NightStep | null;
+}) {
   return view.omniscient ? (
     <NarratedNight view={view} dispatch={dispatch} onDawn={onDawn ?? (() => {})} />
   ) : (
-    <DeviceNight view={view} dispatch={dispatch} />
+    <DeviceNight view={view} dispatch={dispatch} called={called ?? null} />
   );
 }
 
@@ -174,7 +179,7 @@ function Beat({
    */
   empty?: boolean;
 }) {
-  const { say, sting } = useNarrator();
+  const { enqueue } = useNarrator();
   const dawn = calling === "dawn";
   /**
    * The very first beat of the night is the only one with nothing to send to
@@ -195,7 +200,7 @@ function Beat({
   const ready = left <= 0;
 
   useEffect(() => {
-    if (said) say(closing ? sleepStem(closing) : "open");
+    if (said) enqueue([{ line: closing ? sleepStem(closing) : "open" }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [said, closing]);
   /*
@@ -203,24 +208,24 @@ function Beat({
    * to recognises a growl or a bubbling cauldron before they have parsed a
    * word, which is most of why the reference app feels like a game and not a
    * menu — so the line waits a beat and comes in over the tail of it.
+   *
+   * Queued rather than timed, so a role nobody holds is still called in full:
+   * the move-along waits behind the line instead of racing it.
    */
   useEffect(() => {
     if (!ready) return;
     if (dawn) {
-      say("dawn");
+      enqueue([{ line: "dawn" }]);
       return;
     }
-    sting(calling);
-    const said = setTimeout(() => say(wakeStem(calling)), STING_LEAD_MS);
-    // a role nobody holds has nobody to hand the phone to, so the night gives
-    // it the same pause everyone else gets and then moves itself along
-    const move = empty
-      ? setTimeout(onAwake, STING_LEAD_MS + BEAT_SECONDS * 900)
-      : undefined;
-    return () => {
-      clearTimeout(said);
-      if (move) clearTimeout(move);
-    };
+    enqueue([
+      { sting: calling },
+      { pause: STING_LEAD_MS },
+      { line: wakeStem(calling) },
+      // a role nobody holds has nobody to hand the phone to, so the night gives
+      // it the same pause everyone else gets and then moves itself along
+      ...(empty ? [{ pause: BEAT_SECONDS * 900 }, { then: onAwake }] : []),
+    ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, calling, empty]);
 
@@ -282,13 +287,19 @@ function Beat({
 
 /**
  * Your own screen wakes you when you're wanted and tells you nothing when you
- * aren't. There is no narration to overhear and no phone to pass, so the beat
- * would only be dead time.
+ * aren't.
+ *
+ * It waits for the call. The state moves the instant the last role acts, and a
+ * screen that appeared with it let a quick player answer before the moderator
+ * had said a word — the next call then queued behind a line still being read,
+ * and a few roles in, the voice was a whole turn behind the table. Now the
+ * prompt arrives when the voice does, which is the same rule the one-phone
+ * night plays by.
  */
-function DeviceNight({ view, dispatch }: Props) {
+function DeviceNight({ view, dispatch, called }: Props & { called: NightStep | null }) {
   const step = view.step;
   const me = view.selfId ? playerIn(view, view.selfId) : null;
-  if (!step || !me) return <Asleep view={view} />;
+  if (!step || !me || called !== step) return <Asleep view={view} />;
 
   return (
     <>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import RoomShell from "@/components/room/RoomShell";
 import type { Action } from "@/lib/werewolf/reducer";
 import { MIN_PLAYERS, suggestLineup } from "@/lib/werewolf/roles";
-import type { Role } from "@/lib/werewolf/types";
+import type { NightStep, Role } from "@/lib/werewolf/types";
 import type { OnuwView } from "@/lib/werewolf/view";
 import { Sky } from "./Bits";
 import Day from "./Day";
@@ -25,6 +25,14 @@ export default function RoomGame({ code }: { code: string }) {
   // the host's box, sized to whoever has actually turned up
   const [lineup, setLineup] = useState<Record<Role, number> | null>(null);
   const [seconds, setSeconds] = useState(300);
+  /**
+   * The role the narrator has finished calling on *this* device.
+   *
+   * A room has no phone to pass, so the only thing keeping a player in their
+   * turn is being asked for it. Held here rather than inside the night screen
+   * because the narrator is a sibling of it, not a parent.
+   */
+  const [called, setCalled] = useState<NightStep | null>(null);
 
   return (
     <RoomShell
@@ -57,7 +65,12 @@ export default function RoomGame({ code }: { code: string }) {
             <Sky time={skyFor(view)} />
             {/* every device reads the script; only the host's paces the night */}
             <div className="game-bar">
-              <RoomNarrator view={view} dispatch={send} paces={room.isHost} />
+              <RoomNarrator
+                view={view}
+                dispatch={send}
+                paces={room.isHost}
+                onCalled={setCalled}
+              />
             </div>
             {/*
               Listed rather than defaulted. `day` used to be the else-branch,
@@ -74,7 +87,7 @@ export default function RoomGame({ code }: { code: string }) {
               </>
             ) : (
               <>
-                <Night view={view} dispatch={send} />
+                <Night view={view} dispatch={send} called={called} />
                 <YouAre view={view} />
               </>
             )}

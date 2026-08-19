@@ -23,7 +23,11 @@ import {
   HOWL,
   HOWL_GAP,
   SOUNDS,
+  STINGS,
+  STING_BEATS,
+  STING_SECONDS,
   STING_TAKE,
+  briefFor,
   soundFile,
   wakeFile,
   stingFile,
@@ -525,7 +529,27 @@ for (const b of BLOCKS) {
   check(BED.music === true, "the bed is composed music, not an atmosphere");
   check(
     SOUNDS.filter((s) => s.music).length === 1,
-    "and it is the only thing cut on the music endpoint"
+    "and it is the only sound whose *first* take is music"
+  );
+  /*
+   * The stings reach for the music endpoint too, but only from take four. The
+   * sound-effects model has no idea what a bar is — asked for eight notes at
+   * 70 bpm it returned nine different answers, one of them three hits long —
+   * so anything that has to keep time goes to the model that cut the bed.
+   */
+  const composed = briefFor(STINGS[0], STING_TAKE);
+  check(composed.music === true, `the sting take in play (${STING_TAKE}) is cut as music`);
+  check(
+    composed.seconds >= STING_SECONDS,
+    `and is at least the ${STING_SECONDS.toFixed(2)}s of figure that gets played`
+  );
+  check(
+    STING_SECONDS === STING_BEATS * (BED_BAR_SECONDS / 4),
+    "the figure is a whole number of beats at the bed's tempo"
+  );
+  check(
+    Math.abs(STING_SECONDS / BED_BAR_SECONDS - Math.round(STING_SECONDS / BED_BAR_SECONDS)) < 1e-9,
+    "and a whole number of bars, so it ends on a bar line as well as starting on one"
   );
   check(DUCK > 0 && DUCK < 1, "the bed ducks under the moderator rather than stopping");
   check(HOWL_GAP[0] < HOWL_GAP[1], "howls land somewhere inside a range, not on a metronome");

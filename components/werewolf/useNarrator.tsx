@@ -15,6 +15,7 @@ import {
   HOWL_GAP,
   ROOSTER,
   STING_GAIN,
+  STING_SECONDS,
   stingFile,
   takeOf,
 } from "@/lib/werewolf/ambience";
@@ -225,7 +226,7 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
     const fire = (at?: number) => {
       cue.onStart?.();
       duck(true);
-      if (sting) void wood().hit(sting, STING_GAIN, at);
+      if (sting) void wood().hit(sting, STING_GAIN, at, STING_SECONDS);
       if (!src) {
         // a call with no line cut yet is still an event; give it its moment
         window.setTimeout(() => {

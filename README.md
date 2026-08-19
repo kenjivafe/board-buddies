@@ -285,7 +285,16 @@ The bed is played through Web Audio rather than a looping `<audio>` element, in 
 
 The same script also sums a chroma over the loop: **C#** takes a quarter of the energy on its own, the strongest low fundamental is C#3 at 138.6Hz, and the minor third beats the major. Toms smear across neighbouring pitch classes so that is "the drums sit around C#" rather than a key signature — but it is enough to write a brief against, which is what the second set of stings is.
 
-Each sting has **two takes**, and `SoundSpec.retakes` lets a later take be a different idea rather than another roll of the same one. Take 1 is the plain sound effect; take 2 asks for the same event at 70 BPM in C# minor, one hit on the downbeat. All nine came back on a note of the C# natural minor scale, and they decay inside the bar they land in rather than running under the line that follows. `STING_TAKE` picks which set the night plays — both stay on disk, because a change you can only judge by ear needs to be swappable back and forth in one line.
+Each sting has **four takes**, and `SoundSpec.retakes` lets a later take be a different idea — its own brief, its own endpoint, its own length — rather than another roll of the same one:
+
+1. the plain sound effect the night shipped with;
+2. the same single event, at 70 BPM in C# minor. All nine came back on a note of the scale, and it still wasn't enough: right key, right beat, one noise;
+3. eight quarter notes across two bars, asked of the sound-effects endpoint. Nine different answers — a few landed on eighth notes, one came back with three hits and stopped after two seconds. That model makes atmospheres and has no idea what a bar is;
+4. the same brief on `/v1/music`, which is what cut the bed and which honoured its tempo to the decimal. These all run the full length with their hits on a 70 BPM subdivision.
+
+The music endpoint won't cut anything as short as two bars, so take 4 asks for **four** and plays the front half — released over a quarter-second rather than chopped, since a buffer that stops mid-waveform is a click. Two bars in and two bars out means the figure ends on a bar line as well as starting on one, and it deliberately outlasts the line: the call is about two and a half seconds, so the second bar plays under the room while whoever was called picks the phone up.
+
+The trade is real, and is why nothing gets deleted: a music model writes music, so the role's own sound survives as the character of the percussion rather than as a literal growl. `STING_TAKE` picks which set plays, every set stays on disk, and going back is one line.
 
 Re-run the script if the bed is ever recut. Nothing breaks when the numbers drift; the seam just stops landing on a bar, and it stops being worth the trouble.
 

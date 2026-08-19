@@ -17,7 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { SOUNDS, promptFor, soundFile } from "../lib/werewolf/ambience";
+import { SOUNDS, briefFor, soundFile } from "../lib/werewolf/ambience";
 
 const ROOT = path.resolve(import.meta.dirname ?? ".", "..");
 const OUT = path.join(ROOT, "public");
@@ -60,14 +60,10 @@ async function main() {
   for (const spec of SOUNDS) {
     for (let v = 1; v <= spec.variants; v++) {
       const rel = soundFile(spec.stem, v);
-      jobs.push({
-        file: path.join(OUT, rel),
-        // a later take can be a different idea, not just another roll
-        prompt: promptFor(spec, v),
-        seconds: spec.seconds,
-        label: rel,
-        music: Boolean(spec.music),
-      });
+      // a later take can be a different idea on a different model, not just
+      // another roll of the same one
+      const brief = briefFor(spec, v);
+      jobs.push({ file: path.join(OUT, rel), label: rel, ...brief });
     }
   }
 
@@ -98,7 +94,7 @@ async function main() {
       headers: { "xi-api-key": KEY, "Content-Type": "application/json", Accept: "audio/mpeg" },
       body: JSON.stringify(
         job.music
-          ? { prompt: job.prompt, music_length_ms: job.seconds * 1000 }
+          ? { prompt: job.prompt, music_length_ms: Math.round(job.seconds * 1000) }
           : {
               text: job.prompt,
               duration_seconds: job.seconds,

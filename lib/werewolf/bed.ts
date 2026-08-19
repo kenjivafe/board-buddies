@@ -244,13 +244,14 @@ export class NightBed {
    * Falls back to an element when there is no context, so a browser that will
    * not do Web Audio still gets the sound, just not on the beat.
    */
-  async hit(url: string, gain: number, at?: number) {
+  async hit(url: string, gain: number, at?: number, seconds?: number) {
     const ctx = this.context();
     if (!ctx) {
       try {
         const el = new Audio(url);
         el.volume = gain;
         void el.play().catch(() => {});
+        if (seconds !== undefined) window.setTimeout(() => el.pause(), seconds * 1000);
       } catch {
         /* nothing to be done */
       }
@@ -267,6 +268,20 @@ export class NightBed {
     const when = at !== undefined && at > ctx.currentTime ? at : ctx.currentTime;
     // skip the quiet head, so it is the hit that lands on the line, not the file
     src.start(when, clip.lead);
+
+    /*
+     * And take only the front of it. The music endpoint will not cut anything
+     * as short as two bars, so these are four bars long and the back half is
+     * simply not played — released over a fraction of a second rather than
+     * chopped, because a buffer that stops mid-waveform is a click.
+     */
+    if (seconds !== undefined) {
+      const RELEASE = 0.28;
+      const end = when + seconds;
+      g.gain.setValueAtTime(gain, Math.max(ctx.currentTime, end - RELEASE));
+      g.gain.linearRampToValueAtTime(0, end);
+      src.stop(end + 0.02);
+    }
   }
 
   private clip(url: string): Promise<Clip | null> {

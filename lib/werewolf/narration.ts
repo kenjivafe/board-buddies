@@ -34,17 +34,21 @@ export const LEAD_IN_SECONDS = 5;
 
 /**
  * The pause between somebody acting and the moderator picking the script back
- * up.
+ * up. **Rooms only.**
  *
- * A role can be done in a second — the Insomniac only has to look — and the
- * script would come straight back over the top of them. A person moderating
- * lets the hand go back down first; without this beat the game feels like it
- * is hurrying the table along.
+ * A role can be done in a second — the Insomniac only has to look — and in a
+ * room the state moves the instant they tap, so the script came straight back
+ * over the top of them. A person moderating lets the hand go back down first.
+ *
+ * One phone does not need it and is worse for having it: the role that just
+ * went is still reading what they were shown, and the beat only begins when
+ * they tap through. The pause is already there and is not the app's to give.
  */
 export const SETTLE_SECONDS = 2;
 
 /**
- * And a longer one before the table is woken.
+ * And a longer one before the table is woken. **Rooms only**, for the same
+ * reason.
  *
  * The last role finishing is the one moment nobody is expecting anything, so
  * "Everyone... wake up" landing on the heels of it is the most jarring line in

@@ -16,10 +16,8 @@ import {
   BEAT_SECONDS,
   CALL,
   DAWN,
-  DAWN_HOLD_SECONDS,
   INSTRUCTION,
   LEAD_IN_SECONDS,
-  SETTLE_SECONDS,
   OPENING,
   SLEEP,
   TASK,
@@ -190,17 +188,13 @@ function Beat({
    */
   const lead = closing === null && !dawn;
   /*
-   * Every beat but the first opens on a role that has just acted, and comes in
-   * over the top of them if it starts talking straight away. So the dark holds
-   * before the script picks up — longer at dawn, where the last role finishing
-   * is the one moment nobody is expecting to be spoken to. Done by starting the
-   * count higher rather than by delaying the audio, so the words on the screen
-   * and the words in the air stay together.
+   * No hold before the count on one phone, unlike a room. The pause after
+   * somebody acts is already there and is not the app's to give: the role that
+   * just went reads what it was shown and taps through, so by the time this
+   * beat exists the table has had its moment. Adding another on top only made
+   * the night sit there.
    */
-  const hold = dawn ? DAWN_HOLD_SECONDS : SETTLE_SECONDS;
-  const [left, setLeft] = useState(
-    lead ? LEAD_IN_SECONDS + BEAT_SECONDS : hold + BEAT_SECONDS
-  );
+  const [left, setLeft] = useState(lead ? LEAD_IN_SECONDS + BEAT_SECONDS : BEAT_SECONDS);
 
   useEffect(() => {
     if (left <= 0) return;
@@ -293,15 +287,12 @@ function Beat({
             Waiting for the table to settle…
           </p>
         </>
-      ) : lead ? (
-        // the lead-in has nothing to count down to that the table knows about
+      ) : (
+        // only the lead-in gets here, and it has nothing to count down to that
+        // the table knows about
         <p className="hint" role="status">
           Night falls over the village.
         </p>
-      ) : (
-        // the hold after somebody acts: nothing but the moon, on purpose. Any
-        // copy here would be the app filling a silence a moderator would leave
-        <p className="hint" aria-hidden />
       )}
     </section>
   );

@@ -319,9 +319,11 @@ const werewolf: Adapter = {
         if (action.voterId !== actorId) deny("You can only point for yourself.");
         break;
 
+      case "TICK":
       case "OPEN_VOTE":
-        // somebody has to call time on the argument, and that is the host
-        if (!isHost) deny("The host calls the vote.");
+        // one device narrates the night out loud and calls time on the
+        // argument, and that device is the host's
+        if (!isHost) deny("The host is running this table.");
         break;
 
       case "RESTART":

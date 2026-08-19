@@ -21,6 +21,7 @@ import {
   SOUNDS,
   STING_LEAD_MS,
   soundFile,
+  wakeFile,
   stingFile,
   takeOf,
 } from "./lib/werewolf/ambience";
@@ -497,8 +498,14 @@ for (const b of BLOCKS) {
   const audio = path.join(process.cwd(), "public");
 
   check(
-    SOUNDS.length === 3 + NIGHT_ORDER.length,
-    `the bed, the howls, the cockerel and one sting per role — saw ${SOUNDS.length}`
+    SOUNDS.length === 4 + NIGHT_ORDER.length,
+    `bed, howls, cockerel, wake cue and one sting per role — saw ${SOUNDS.length}`
+  );
+  // the "it is you" chime must never be a role sting: at a table, a wolf growl
+  // out of somebody pocket names them
+  check(
+    !NIGHT_ORDER.some((s) => wakeFile() === stingFile(s)),
+    "the wake cue is its own sound, not a role sting"
   );
   check(BED.variants === 1 && HOWL.variants > 1, "the bed is one take; the howls are several");
   check(BED.seconds >= 30, `the bed is long enough not to announce its own loop (${BED.seconds}s)`);

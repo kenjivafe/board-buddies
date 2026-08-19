@@ -12,7 +12,9 @@ import End from "./End";
 import { skyFor } from "./Game";
 import Lineup from "./Lineup";
 import Night from "./Night";
+import RoomNarrator from "./RoomNarrator";
 import { YouAre } from "./Table";
+import { NarratorProvider } from "./useNarrator";
 
 /**
  * One Night across devices. There is nothing to pass and nothing to peek at:
@@ -51,8 +53,14 @@ export default function RoomGame({ code }: { code: string }) {
         const send = dispatch as React.Dispatch<Action>;
 
         return (
-          <>
+          <NarratorProvider>
             <Sky time={skyFor(view)} />
+            {/* one voice for the table, and it is the host's */}
+            {room.isHost && (
+              <div className="game-bar">
+                <RoomNarrator view={view} dispatch={send} />
+              </div>
+            )}
             {/*
               Listed rather than defaulted. `day` used to be the else-branch,
               so a room that ended up anywhere unexpected — a deal that had not
@@ -72,7 +80,7 @@ export default function RoomGame({ code }: { code: string }) {
                 <YouAre view={view} />
               </>
             )}
-          </>
+          </NarratorProvider>
         );
       }}
     </RoomShell>

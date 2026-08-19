@@ -41,6 +41,14 @@ export type Action =
   | { type: "TROUBLEMAKER"; aId: string | null; bId: string | null }
   | { type: "DRUNK"; centreSlot: number }
   | { type: "INSOMNIAC" }
+  /**
+   * "Nothing happened here, move on." Sent by whoever is pacing the night —
+   * the phone on one device, the host in a room — once a role has been called
+   * and given its beat. It only ever moves a step that nobody was dealt, so
+   * the sender never has to know whether that is the case, and therefore never
+   * learns which roles are in the middle.
+   */
+  | { type: "TICK" }
   | { type: "OPEN_VOTE" }
   | { type: "VOTE"; voterId: string; targetId: string }
   | { type: "UNDO" }
@@ -211,9 +219,19 @@ function announce(state: OnuwState, step: NightStep): OnuwState {
   return next;
 }
 
+/**
+ * Whether a role is in the box at all — as opposed to whether anybody was
+ * dealt it. Every role in the box gets called, exactly as a moderator calls
+ * them: skipping the ones that landed in the middle would announce which
+ * roles are in the middle, which is most of what the table is trying to work
+ * out. A role nobody holds simply has nobody to answer, and the night waits a
+ * beat and moves on.
+ */
+const inTheBox = (state: OnuwState, step: NightStep) => (state.lineup[step] ?? 0) > 0;
+
 function advance(state: OnuwState): OnuwState {
   const next =
-    NIGHT_ORDER.find((s) => !state.done.includes(s) && actorsOf(state, s).length > 0) ?? null;
+    NIGHT_ORDER.find((s) => !state.done.includes(s) && inTheBox(state, s)) ?? null;
   if (next === null) return dawn(state);
   if (next === state.step) return state;
   return announce({ ...state, step: next, acked: [], witchSaw: null }, next);
@@ -649,6 +667,17 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
     }
 
     // ---------- daylight ----------
+
+    case "TICK": {
+      const step = state.step;
+      // a step somebody holds is theirs to end, not the clock's
+      if (state.phase !== "night" || !step || actorsOf(state, step).length > 0) {
+        // deliberately a new object: a tick that changes nothing is normal, and
+        // a room would otherwise report it to the sender as a refused move
+        return { ...state };
+      }
+      return finish(state, step);
+    }
 
     case "OPEN_VOTE": {
       if (state.phase !== "day") return state;

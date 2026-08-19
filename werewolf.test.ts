@@ -44,7 +44,7 @@ const lineupOf = (...roles: Role[]): Record<Role, number> => {
 function table(seats: [string, Role][], centre: Role[]): OnuwState {
   const slots = [...seats.map(([, r]) => r), ...centre];
   const lineup = lineupOf(...slots);
-  let s = reducer(initialState(), {
+  let s = play(initialState(), {
     type: "START",
     players: seats.map(([name], i) => ({ id: `p${i}`, name })),
     lineup,
@@ -68,9 +68,27 @@ function table(seats: [string, Role][], centre: Role[]): OnuwState {
       ])
     ),
   };
-  while (s.phase === "deal") s = reducer(s, { type: "DEAL_NEXT" });
+  while (s.phase === "deal") s = play(s, { type: "DEAL_NEXT" });
   return s;
 }
+
+/**
+ * Walks past a role nobody was dealt. Every role in the box is called now, so
+ * a step with no actors sits there until whoever is pacing the night ticks it
+ * along — the phone on one device, the host in a room.
+ */
+function settle(s: OnuwState): OnuwState {
+  let cur = s;
+  for (let guard = 0; guard < 24; guard++) {
+    if (cur.phase !== "night" || !cur.step) return cur;
+    if (actorsOf(cur, cur.step).length > 0) return cur;
+    cur = reducer(cur, { type: "TICK" });
+  }
+  return cur;
+}
+
+/** One action, then straight past anything nobody has to answer. */
+const play = (s: OnuwState, a: Action): OnuwState => settle(reducer(s, a));
 
 const id = (s: OnuwState, name: string) => s.players.find((p) => p.name === name)!.id;
 const nameAt = (s: OnuwState, playerId: string) => s.players.find((p) => p.id === playerId)!.name;
@@ -78,7 +96,7 @@ const step = (s: OnuwState) => s.step;
 const notesOf = (s: OnuwState, name: string) => s.notes[id(s, name)] ?? [];
 const lastNote = (s: OnuwState, name: string) => notesOf(s, name)[notesOf(s, name).length - 1];
 const ack = (s: OnuwState, name: string, centreSlot?: number): OnuwState =>
-  reducer(s, { type: "WAKE_ACK", playerId: id(s, name), centreSlot });
+  play(s, { type: "WAKE_ACK", playerId: id(s, name), centreSlot });
 
 /** The cards in play must always be the cards that were dealt, wherever they've moved. */
 function conserved(s: OnuwState, where: string) {
@@ -129,7 +147,7 @@ function conserved(s: OnuwState, where: string) {
   }
 
   // START refuses an illegal box outright rather than dealing a broken game
-  const refused = reducer(initialState(), {
+  const refused = play(initialState(), {
     type: "START",
     players: [0, 1, 2].map((i) => ({ id: `p${i}`, name: `P${i}` })),
     lineup: lineupOf("werewolf", "villager"),
@@ -141,7 +159,7 @@ function conserved(s: OnuwState, where: string) {
 // ---------- the deal ----------
 
 {
-  let s = reducer(initialState(), {
+  let s = play(initialState(), {
     type: "START",
     players: [0, 1, 2, 3, 4].map((i) => ({ id: `p${i}`, name: `P${i}` })),
     lineup: suggestLineup(5),
@@ -152,7 +170,7 @@ function conserved(s: OnuwState, where: string) {
 
   let peeks = 0;
   while (s.phase === "deal" && peeks < 20) {
-    s = reducer(s, { type: "DEAL_NEXT" });
+    s = play(s, { type: "DEAL_NEXT" });
     peeks++;
   }
   check(peeks === 5, `one peek per player, took ${peeks}`);
@@ -198,26 +216,26 @@ function conserved(s: OnuwState, where: string) {
       case "minion":
       case "mason":
         for (const p of actorsOf(cur, at)) {
-          cur = reducer(cur, { type: "WAKE_ACK", playerId: p.id });
+          cur = play(cur, { type: "WAKE_ACK", playerId: p.id });
         }
         break;
       case "seer":
-        cur = reducer(cur, { type: "SEER", targetId: null, centreSlots: [] });
+        cur = play(cur, { type: "SEER", targetId: null, centreSlots: [] });
         break;
       case "robber":
-        cur = reducer(cur, { type: "ROBBER", targetId: null });
+        cur = play(cur, { type: "ROBBER", targetId: null });
         break;
       case "witch":
-        cur = reducer(cur, { type: "WITCH_PASS" });
+        cur = play(cur, { type: "WITCH_PASS" });
         break;
       case "troublemaker":
-        cur = reducer(cur, { type: "TROUBLEMAKER", aId: null, bId: null });
+        cur = play(cur, { type: "TROUBLEMAKER", aId: null, bId: null });
         break;
       case "drunk":
-        cur = reducer(cur, { type: "DRUNK", centreSlot: centreSlots(cur)[0] });
+        cur = play(cur, { type: "DRUNK", centreSlot: centreSlots(cur)[0] });
         break;
       case "insomniac":
-        cur = reducer(cur, { type: "INSOMNIAC" });
+        cur = play(cur, { type: "INSOMNIAC" });
         break;
     }
   }
@@ -368,12 +386,12 @@ function conserved(s: OnuwState, where: string) {
   );
   check(step(base) === "seer", "the seer follows the pack");
 
-  const onPlayer = reducer(base, { type: "SEER", targetId: id(base, "Bo"), centreSlots: [] });
+  const onPlayer = play(base, { type: "SEER", targetId: id(base, "Bo"), centreSlots: [] });
   const seen = lastNote(onPlayer, "Ana");
   check(seen.cards.length === 1 && seen.cards[0].role === "werewolf", "the seer reads a player's real card");
 
   const [c0, c1] = centreSlots(base);
-  const onCentre = reducer(base, { type: "SEER", targetId: null, centreSlots: [c0, c1] });
+  const onCentre = play(base, { type: "SEER", targetId: null, centreSlots: [c0, c1] });
   const pairSeen = lastNote(onCentre, "Ana");
   check(pairSeen.cards.length === 2, "or two of the three in the middle");
   check(
@@ -381,11 +399,11 @@ function conserved(s: OnuwState, where: string) {
     "and they are the cards that are actually there"
   );
 
-  const onSelf = reducer(base, { type: "SEER", targetId: id(base, "Ana"), centreSlots: [] });
+  const onSelf = play(base, { type: "SEER", targetId: id(base, "Ana"), centreSlots: [] });
   check(step(onSelf) === "seer", "the seer cannot read her own card");
-  const three = reducer(base, { type: "SEER", targetId: null, centreSlots: [c0, c1, centreSlots(base)[2]] });
+  const three = play(base, { type: "SEER", targetId: null, centreSlots: [c0, c1, centreSlots(base)[2]] });
   check(lastNote(three, "Ana").cards.length === 2, "and never more than two from the middle");
-  const twice = reducer(base, { type: "SEER", targetId: null, centreSlots: [c0, c0] });
+  const twice = play(base, { type: "SEER", targetId: null, centreSlots: [c0, c0] });
   check(step(twice) === "seer", "nor the same centre card twice");
 }
 
@@ -403,7 +421,7 @@ function conserved(s: OnuwState, where: string) {
     ),
     "Bo"
   );
-  const robbed = reducer(base, { type: "ROBBER", targetId: id(base, "Bo") });
+  const robbed = play(base, { type: "ROBBER", targetId: id(base, "Bo") });
   check(cardOf(robbed, id(base, "Ana")) === "werewolf", "the robber takes the card");
   check(cardOf(robbed, id(base, "Bo")) === "robber", "and leaves their own behind");
   check(
@@ -417,9 +435,9 @@ function conserved(s: OnuwState, where: string) {
   check(robbed.players.find((p) => p.name === "Ana")!.dealt === "robber", "what they were dealt does not change");
   conserved(robbed, "after a robbery");
 
-  const declined = reducer(base, { type: "ROBBER", targetId: null });
+  const declined = play(base, { type: "ROBBER", targetId: null });
   check(cardOf(declined, id(base, "Ana")) === "robber", "a robber who keeps their hands to themselves keeps their card");
-  const self = reducer(base, { type: "ROBBER", targetId: id(base, "Ana") });
+  const self = play(base, { type: "ROBBER", targetId: id(base, "Ana") });
   check(step(self) === "robber", "and cannot rob themselves");
 }
 
@@ -440,7 +458,7 @@ function conserved(s: OnuwState, where: string) {
   const [c0] = centreSlots(base);
 
   // she looks first, and the card is shown to her before she has to place it
-  const looked = reducer(base, { type: "WITCH_LOOK", centreSlot: c0 });
+  const looked = play(base, { type: "WITCH_LOOK", centreSlot: c0 });
   check(step(looked) === "witch", "looking does not end her turn");
   check(looked.witchSaw === c0, "the card she is holding up is remembered");
   check(
@@ -452,7 +470,7 @@ function conserved(s: OnuwState, where: string) {
     "nothing has moved yet"
   );
 
-  const planted = reducer(looked, { type: "WITCH_PLACE", targetId: id(base, "Bo") });
+  const planted = play(looked, { type: "WITCH_PLACE", targetId: id(base, "Bo") });
   check(cardOf(planted, id(base, "Bo")) === "tanner", "the witch plants the card she looked at");
   check(planted.slots[c0] === "werewolf", "and the card she displaced goes to the middle");
   check(
@@ -462,21 +480,21 @@ function conserved(s: OnuwState, where: string) {
   check(planted.phase === "day", "and placing it ends her turn");
   conserved(planted, "after the witch");
 
-  const onSelf = reducer(looked, { type: "WITCH_PLACE", targetId: id(base, "Ana") });
+  const onSelf = play(looked, { type: "WITCH_PLACE", targetId: id(base, "Ana") });
   check(cardOf(onSelf, id(base, "Ana")) === "tanner", "she may plant it on herself");
 
-  const declined = reducer(base, { type: "WITCH_PASS" });
+  const declined = play(base, { type: "WITCH_PASS" });
   check(
     JSON.stringify(declined.slots) === JSON.stringify(base.slots),
     "a witch who does not look moves nothing"
   );
   check(declined.phase === "day", "and that ends her turn too");
   check(
-    step(reducer(looked, { type: "WITCH_PASS" })) === "witch",
+    step(play(looked, { type: "WITCH_PASS" })) === "witch",
     "but once she has looked she cannot back out"
   );
   check(
-    reducer(looked, { type: "WITCH_LOOK", centreSlot: centreSlots(base)[1] }).witchSaw === c0,
+    play(looked, { type: "WITCH_LOOK", centreSlot: centreSlots(base)[1] }).witchSaw === c0,
     "nor look at a second card"
   );
 }
@@ -495,7 +513,7 @@ function conserved(s: OnuwState, where: string) {
     ),
     "Bo"
   );
-  const swapped = reducer(base, { type: "TROUBLEMAKER", aId: id(base, "Bo"), bId: id(base, "Cy") });
+  const swapped = play(base, { type: "TROUBLEMAKER", aId: id(base, "Bo"), bId: id(base, "Cy") });
   check(cardOf(swapped, id(base, "Bo")) === "villager", "two other players change places");
   check(cardOf(swapped, id(base, "Cy")) === "werewolf", "both ways round");
   check(lastNote(swapped, "Ana").cards.length === 0, "and the troublemaker sees neither card");
@@ -505,9 +523,9 @@ function conserved(s: OnuwState, where: string) {
   );
   conserved(swapped, "after the troublemaker");
 
-  const includesSelf = reducer(base, { type: "TROUBLEMAKER", aId: id(base, "Ana"), bId: id(base, "Bo") });
+  const includesSelf = play(base, { type: "TROUBLEMAKER", aId: id(base, "Ana"), bId: id(base, "Bo") });
   check(step(includesSelf) === "troublemaker", "the troublemaker cannot swap themselves in");
-  const same = reducer(base, { type: "TROUBLEMAKER", aId: id(base, "Bo"), bId: id(base, "Bo") });
+  const same = play(base, { type: "TROUBLEMAKER", aId: id(base, "Bo"), bId: id(base, "Bo") });
   check(step(same) === "troublemaker", "nor one person with themselves");
 }
 
@@ -526,13 +544,13 @@ function conserved(s: OnuwState, where: string) {
     "Bo"
   );
   const [, c1] = centreSlots(base);
-  const swapped = reducer(base, { type: "DRUNK", centreSlot: c1 });
+  const swapped = play(base, { type: "DRUNK", centreSlot: c1 });
   check(cardOf(swapped, id(base, "Ana")) === "seer", "the drunk takes a card from the middle");
   check(swapped.slots[c1] === "drunk", "and leaves their own there");
   check(lastNote(swapped, "Ana").cards.length === 0, "without ever seeing it");
   conserved(swapped, "after the drunk");
 
-  const bogus = reducer(base, { type: "DRUNK", centreSlot: 0 });
+  const bogus = play(base, { type: "DRUNK", centreSlot: 0 });
   check(step(bogus) === "drunk", "a seat is not a centre card");
 }
 
@@ -552,24 +570,24 @@ function conserved(s: OnuwState, where: string) {
     ["tanner", "seer", "villager"]
   );
 
-  s = reducer(s, { type: "WAKE_ACK", playerId: id(s, "Eve") });
+  s = play(s, { type: "WAKE_ACK", playerId: id(s, "Eve") });
   check(step(s) === "robber", "the pack, then the robber");
-  s = reducer(s, { type: "ROBBER", targetId: id(s, "Dee") });
+  s = play(s, { type: "ROBBER", targetId: id(s, "Dee") });
   check(cardOf(s, id(s, "Ana")) === "insomniac", "the robber becomes the insomniac");
   check(cardOf(s, id(s, "Dee")) === "robber", "and the insomniac is now holding the robber");
 
   check(step(s) === "troublemaker", "the troublemaker is next");
-  s = reducer(s, { type: "TROUBLEMAKER", aId: id(s, "Dee"), bId: id(s, "Eve") });
+  s = play(s, { type: "TROUBLEMAKER", aId: id(s, "Dee"), bId: id(s, "Eve") });
   check(cardOf(s, id(s, "Dee")) === "werewolf", "who hands the insomniac a werewolf");
 
   check(step(s) === "drunk", "then the drunk");
-  s = reducer(s, { type: "DRUNK", centreSlot: centreSlots(s)[0] });
+  s = play(s, { type: "DRUNK", centreSlot: centreSlots(s)[0] });
   check(cardOf(s, id(s, "Cy")) === "tanner", "who is now the tanner and has no idea");
 
   check(step(s) === "insomniac", "and the insomniac goes last");
   // she still acts, because she was DEALT the insomniac — even though the card
   // has long since left her
-  s = reducer(s, { type: "INSOMNIAC" });
+  s = play(s, { type: "INSOMNIAC" });
   const woke = lastNote(s, "Dee");
   check(woke.cards[0].role === "werewolf", "she checks her card and finds a werewolf");
   check(woke.text.includes("Werewolf"), "and is told so in as many words");
@@ -585,8 +603,8 @@ function conserved(s: OnuwState, where: string) {
       ],
       ["seer", "tanner", "villager"]
     );
-    q = reducer(q, { type: "WAKE_ACK", playerId: id(q, "Bo") });
-    return reducer(q, { type: "INSOMNIAC" });
+    q = play(q, { type: "WAKE_ACK", playerId: id(q, "Bo") });
+    return play(q, { type: "INSOMNIAC" });
   })();
   check(
     lastNote(untouched, "Ana").text.includes("Still the Insomniac"),
@@ -603,21 +621,21 @@ function toVote(s: OnuwState): OnuwState {
   while (cur.phase === "night" && guard++ < 30) {
     const at = cur.step!;
     if (at === "werewolf" || at === "minion" || at === "mason") {
-      for (const p of actorsOf(cur, at)) cur = reducer(cur, { type: "WAKE_ACK", playerId: p.id });
-    } else if (at === "seer") cur = reducer(cur, { type: "SEER", targetId: null, centreSlots: [] });
-    else if (at === "robber") cur = reducer(cur, { type: "ROBBER", targetId: null });
-    else if (at === "witch") cur = reducer(cur, { type: "WITCH_PASS" });
-    else if (at === "troublemaker") cur = reducer(cur, { type: "TROUBLEMAKER", aId: null, bId: null });
-    else if (at === "drunk") cur = reducer(cur, { type: "DRUNK", centreSlot: centreSlots(cur)[0] });
-    else if (at === "insomniac") cur = reducer(cur, { type: "INSOMNIAC" });
+      for (const p of actorsOf(cur, at)) cur = play(cur, { type: "WAKE_ACK", playerId: p.id });
+    } else if (at === "seer") cur = play(cur, { type: "SEER", targetId: null, centreSlots: [] });
+    else if (at === "robber") cur = play(cur, { type: "ROBBER", targetId: null });
+    else if (at === "witch") cur = play(cur, { type: "WITCH_PASS" });
+    else if (at === "troublemaker") cur = play(cur, { type: "TROUBLEMAKER", aId: null, bId: null });
+    else if (at === "drunk") cur = play(cur, { type: "DRUNK", centreSlot: centreSlots(cur)[0] });
+    else if (at === "insomniac") cur = play(cur, { type: "INSOMNIAC" });
   }
-  return reducer(cur, { type: "OPEN_VOTE" });
+  return play(cur, { type: "OPEN_VOTE" });
 }
 
 const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
   let cur = s;
   for (const [voter, target] of Object.entries(at)) {
-    cur = reducer(cur, { type: "VOTE", voterId: id(s, voter), targetId: id(s, target) });
+    cur = play(cur, { type: "VOTE", voterId: id(s, voter), targetId: id(s, target) });
   }
   return cur;
 };
@@ -636,7 +654,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
   );
   check(base.phase === "vote", "the host opens the ballot");
 
-  const half = reducer(base, { type: "VOTE", voterId: id(base, "Ana"), targetId: id(base, "Bo") });
+  const half = play(base, { type: "VOTE", voterId: id(base, "Ana"), targetId: id(base, "Bo") });
   check(half.phase === "vote", "the count waits for everybody to point");
 
   const hanged = pointAll(base, { Ana: "Bo", Bo: "Ana", Cy: "Ana", Dee: "Ana" });
@@ -656,7 +674,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
   const tied = pointAll(base, { Ana: "Bo", Cy: "Bo", Bo: "Cy", Dee: "Cy" });
   check(tied.outcome!.killed.length === 2, "a tie at the top kills everyone tied");
 
-  const self = reducer(base, { type: "VOTE", voterId: id(base, "Ana"), targetId: id(base, "Ana") });
+  const self = play(base, { type: "VOTE", voterId: id(base, "Ana"), targetId: id(base, "Ana") });
   check(Object.keys(self.votes).length === 0, "nobody may point at themselves");
 }
 
@@ -699,10 +717,10 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
     ],
     ["tanner", "seer", "villager"]
   );
-  moved = reducer(moved, { type: "WAKE_ACK", playerId: id(moved, "Cy") });
-  moved = reducer(moved, { type: "ROBBER", targetId: id(moved, "Ana") });
+  moved = play(moved, { type: "WAKE_ACK", playerId: id(moved, "Cy") });
+  moved = play(moved, { type: "ROBBER", targetId: id(moved, "Ana") });
   check(cardOf(moved, id(moved, "Bo")) === "prince", "the robber is holding the prince now");
-  const after = pointAll(reducer(moved, { type: "OPEN_VOTE" }), {
+  const after = pointAll(play(moved, { type: "OPEN_VOTE" }), {
     Ana: "Bo",
     Cy: "Bo",
     Dee: "Bo",
@@ -883,9 +901,18 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
   check(villager.table === null, "a seated player is never handed the whole table");
   check(viewFor(s, ALL_SEEING).table !== null, "the one-phone device is — the gates are what keep it honest");
 
-  // the box itself is public — it is what the whole day argument is built on —
-  // so it is the only place the word is allowed to appear
-  const scrub = (v: unknown) => JSON.stringify({ ...(v as object), lineup: null });
+  /*
+   * Two fields are public on purpose, and everything else is scrubbed against
+   * them: the box, which is what the whole day argument is built on, and the
+   * narration cue, which is the line being said out loud. The cue is only safe
+   * because every role in the box is called whether or not anybody holds it —
+   * if the night skipped the empty ones, this field would announce exactly
+   * which roles are in the middle.
+   */
+  check(villager.narrate === "werewolf", "the narration cue names the step being called");
+  check(villager.step === null, "…while the villager's own screen still stays dark");
+  const scrub = (v: unknown) =>
+    JSON.stringify({ ...(v as object), lineup: null, narrate: null });
   const payload = scrub(villager);
   check(!JSON.stringify(villager).includes('"past"'), "the undo stack never reaches the wire");
   check(!JSON.stringify(villager).includes('"slots"'), "nor does the map of where every card is");
@@ -894,7 +921,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
   // the seer's reading is hers, and stays hers
   s = ack(ack(s, "Ana"), "Bo");
   s = ack(s, "Min");
-  s = reducer(s, { type: "SEER", targetId: id(s, "Ana"), centreSlots: [] });
+  s = play(s, { type: "SEER", targetId: id(s, "Ana"), centreSlots: [] });
   const seer = viewFor(s, id(s, "Cy"));
   const other = viewFor(s, id(s, "Eve"));
   check(
@@ -905,7 +932,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
 
   // ballots stay sealed until the count is read out
   let voting = toVote(s);
-  voting = reducer(voting, { type: "VOTE", voterId: id(voting, "Ana"), targetId: id(voting, "Eve") });
+  voting = play(voting, { type: "VOTE", voterId: id(voting, "Ana"), targetId: id(voting, "Eve") });
   const mid = viewFor(voting, id(voting, "Eve"));
   check(mid.votedIds.length === 1, "the table sees that somebody has pointed");
   check(mid.ballots === null, "but not who at");
@@ -964,7 +991,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
     if (lineupProblem(lineup, seats)) continue;
     games++;
 
-    let s = reducer(initialState(), {
+    let s = play(initialState(), {
       type: "START",
       players: Array.from({ length: seats }, (_, i) => ({ id: `p${i}`, name: `P${i}` })),
       lineup,
@@ -977,16 +1004,16 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
       const centre = centreSlots(s);
 
       if (s.phase === "deal") {
-        s = reducer(s, { type: "DEAL_NEXT" });
+        s = play(s, { type: "DEAL_NEXT" });
         continue;
       }
       if (s.phase === "day") {
-        s = reducer(s, { type: "OPEN_VOTE" });
+        s = play(s, { type: "OPEN_VOTE" });
         continue;
       }
       if (s.phase === "vote") {
         const voter = s.players.find((p) => !(p.id in s.votes))!;
-        s = reducer(s, { type: "VOTE", voterId: voter.id, targetId: pick(others(voter.id)).id });
+        s = play(s, { type: "VOTE", voterId: voter.id, targetId: pick(others(voter.id)).id });
         continue;
       }
 
@@ -1029,7 +1056,7 @@ const pointAll = (s: OnuwState, at: Record<string, string>): OnuwState => {
         }
       })();
 
-      s = reducer(s, action);
+      s = play(s, action);
       if (JSON.stringify({ ...s, past: [] }) === before) {
         throw new Error(`fuzz: ${action.type} changed nothing at step ${at}`);
       }

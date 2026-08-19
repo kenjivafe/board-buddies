@@ -109,18 +109,29 @@ function NarratedNight({ view, dispatch, onDawn }: Props & { onDawn: () => void 
     return <Beat key="dawn" closing={awakeAt} calling="dawn" onAwake={onDawn} />;
   }
 
+  const actors = wakers(view, step);
+
   if (awakeAt !== step) {
     return (
       <Beat
         key={step}
         closing={awakeAt}
         calling={step}
-        onAwake={() => setAwakeAt(step)}
+        empty={actors.length === 0}
+        // an empty step is ticked past rather than handed over; the phone is
+        // the moderator here, so it is allowed to know there was nobody
+        onAwake={
+          actors.length === 0
+            ? () => {
+                setAwakeAt(step);
+                dispatch({ type: "TICK" });
+              }
+            : () => setAwakeAt(step)
+        }
       />
     );
   }
 
-  const actors = wakers(view, step);
   return (
     <>
       <NightHead step={step} />
@@ -150,11 +161,18 @@ function Beat({
   closing,
   calling,
   onAwake,
+  empty = false,
 }: {
   closing: NightStep | null;
   /** a role to wake, or "dawn" — the last beat, which wakes the whole table */
   calling: NightStep | "dawn";
   onAwake: () => void;
+  /**
+   * Nobody was dealt this one. It is still called — skipping it would tell the
+   * table the card is in the middle — but there is nobody to hand the phone to,
+   * so the night pauses on it and then moves itself along.
+   */
+  empty?: boolean;
 }) {
   const { say, sting } = useNarrator();
   const dawn = calling === "dawn";
@@ -193,10 +211,18 @@ function Beat({
       return;
     }
     sting(calling);
-    const t = setTimeout(() => say(wakeStem(calling)), STING_LEAD_MS);
-    return () => clearTimeout(t);
+    const said = setTimeout(() => say(wakeStem(calling)), STING_LEAD_MS);
+    // a role nobody holds has nobody to hand the phone to, so the night gives
+    // it the same pause everyone else gets and then moves itself along
+    const move = empty
+      ? setTimeout(onAwake, STING_LEAD_MS + BEAT_SECONDS * 900)
+      : undefined;
+    return () => {
+      clearTimeout(said);
+      if (move) clearTimeout(move);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, calling]);
+  }, [ready, calling, empty]);
 
   return (
     <section className="beat">
@@ -213,12 +239,20 @@ function Beat({
         <>
           <p className="beat-call">{shown(dawn ? DAWN : CALL[calling])}</p>
           {!dawn && <p className="beat-instruction">{INSTRUCTION[calling]}</p>}
-          <button className="btn btn-primary" onClick={onAwake}>
-            {dawn ? "Everybody up" : "That's me — I have the phone"}
-          </button>
-          <p className="hint">
-            {dawn ? "That's the night over. Now argue." : "Everyone else, eyes shut."}
-          </p>
+          {empty ? (
+            <p className="hint" role="status">
+              Nobody stirs.
+            </p>
+          ) : (
+            <>
+              <button className="btn btn-primary" onClick={onAwake}>
+                {dawn ? "Everybody up" : "That's me — I have the phone"}
+              </button>
+              <p className="hint">
+                {dawn ? "That's the night over. Now argue." : "Everyone else, eyes shut."}
+              </p>
+            </>
+          )}
         </>
       ) : said ? (
         <>

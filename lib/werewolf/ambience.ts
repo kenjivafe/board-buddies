@@ -105,7 +105,24 @@ export const STINGS: SoundSpec[] = NIGHT_ORDER.map((step) => ({
   variants: 1,
 }));
 
-export const SOUNDS: SoundSpec[] = [BED, HOWL, ROOSTER, ...STINGS];
+/**
+ * "It is you." Played on your own device when the night reaches you.
+ *
+ * Deliberately the SAME sound for every role, and deliberately not the role
+ * sting: at a table, a wolf growl coming out of somebody's pocket tells the
+ * neighbours exactly what they were dealt. This says only that a phone wants
+ * its owner.
+ */
+export const WAKE_CUE: SoundSpec = {
+  stem: "your_turn",
+  prompt:
+    "A single soft clear bell chime, warm and gentle, one strike with a short tail. Neutral and calm, like a notification. No music, no melody.",
+  seconds: 2,
+  gain: 0.7,
+  variants: 1,
+};
+
+export const SOUNDS: SoundSpec[] = [BED, HOWL, ROOSTER, WAKE_CUE, ...STINGS];
 
 /** How long to wait between howls, in ms. Random inside this range. */
 export const HOWL_GAP: [number, number] = [22_000, 55_000];
@@ -128,6 +145,12 @@ export const soundFile = (stem: string, variant = 1): string =>
 /** A random take of a sound that was cut in several. */
 export const takeOf = (spec: SoundSpec): string =>
   soundFile(spec.stem, 1 + Math.floor(Math.random() * spec.variants));
+
+/** The neutral "your phone wants you" chime. */
+export const wakeFile = (): string => soundFile(WAKE_CUE.stem);
+
+/** How long the phone buzzes when the night reaches you, in ms. */
+export const WAKE_BUZZ: number[] = [180, 90, 180];
 
 /** The sound a role arrives on. */
 export const stingFile = (step: NightStep): string => soundFile(`sting_${step}`);

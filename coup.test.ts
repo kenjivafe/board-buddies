@@ -817,11 +817,17 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   s = reducer(s, { type: "CHALLENGE", challengerId: "p1" });
   s = reducer(s, { type: "REVEAL" });
 
+  /*
+   * The proven card goes back into the court, the court is shuffled, and one
+   * is drawn — so the replacement can legitimately be the very same card, and
+   * a single run cannot assert the id changed. (The block further up proves
+   * the swap happens by running it sixty times.) What holds every time is the
+   * bookkeeping: one card out, one card in, nothing else touched.
+   */
   const after = s.players[0].cards.map((c) => c.id);
-  check(after[0] !== before[0], "a proven card is swapped for a fresh one");
-  check(after[1] === before[1], "and the other influence is left alone");
+  check(after[1] === before[1], "the other influence is left alone");
   check(s.court.length === court, "the court is the same size — one in, one out");
-  check(s.court.some((c) => c.character === "duke"), "the proven Duke is back in the court");
+  check(s.players[0].cards.length === 2, "and the prover still holds two");
   checkConservation(s, "after a proven challenge");
   check(
     s.log.some((l) => l.text.includes("draws a replacement")),

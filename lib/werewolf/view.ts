@@ -56,6 +56,16 @@ export interface OnuwView {
    * actually dealt to players and which are sitting in the centre.
    */
   step: NightStep | null;
+  /**
+   * The step being called, for whoever is narrating out loud.
+   *
+   * Safe to publish, unlike `step`: every role in the box is now called
+   * whether or not anybody holds it, so knowing where the night has got to
+   * says nothing about what is in the middle. It is still never *rendered* to
+   * anyone the step does not wake — the screen stays dark, and only the
+   * narration is public.
+   */
+  narrate: NightStep | null;
   /** who in your own group has already looked. Empty unless you're in it. */
   acked: string[];
   /**
@@ -118,6 +128,7 @@ export function viewFor(state: OnuwState, viewerId: string | null): OnuwView {
     omniscient,
 
     step: omniscient || awake ? state.step : null,
+    narrate: state.step,
     // your own group's progress is yours to see; the pack already knows the pack
     acked: omniscient || awake ? state.acked : [],
     groupSize: omniscient || awake ? actors.length : 0,

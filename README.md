@@ -253,6 +253,16 @@ npx tsx scripts/generate-voices.ts --redo=werewolf/moderator # recast the narrat
 
 A missing file is **silence by design** — the game is fully playable before anybody has run the script, and stays playable if a clip fails to load.
 
+#### One voice per table
+
+Rooms used to be silent, and that was wrong. The night only reached the one device it woke, with no sound and no buzz, so a table could sit on "the village sleeps" with no idea whose turn it was or whether the game was even alive.
+
+**A room has one voice now, and it is the host's.** Every handset reading the script would talk over the others, and a phone that speaks only when *its own owner* is wanted announces that owner to everybody sitting near it. So [RoomNarrator.tsx](components/werewolf/RoomNarrator.tsx) runs on the host's device and nobody else's — exactly as if a person were running the game — while each player's own screen quietly holds whatever is private to them.
+
+That forced the night to change shape, in **both** modes. **Every role in the box is called**, whether or not anybody was dealt it: skipping the ones that landed in the middle announced which roles are in the middle, which is most of what the table is trying to work out. A role nobody holds has nobody to answer for it, so once its line has been read and given its beat the pacing device sends a `TICK` — and the reducer moves on *only if that step really was empty*, which is how the pacer is never told which ones were. A role somebody does hold ends its own step by acting, and the next line doesn't start until it has.
+
+`narrate` is therefore published where `step` still isn't: the running order no longer depends on what's in the centre, so naming the line being said gives nothing away, while the screen stays dark for anyone the step doesn't wake.
+
 #### The room tone
 
 Under the voice there are three more layers, declared in [ambience.ts](lib/werewolf/ambience.ts):

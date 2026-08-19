@@ -615,6 +615,16 @@ function coupGame(...names: string[]): CoupState {
   while (live.phase === "night" && guard++ < 20) {
     const step = live.step!;
     const actor = actorsOf(live, step)[0];
+    // every role in the box is called, so some of these steps wake nobody —
+    // the host ticks those along without being told which they were
+    if (!actor) {
+      denies(
+        () => wolves.apply(live, { type: "TICK" }, stranger, false),
+        "a guest cannot pace the night"
+      );
+      live = wolves.apply(live, { type: "TICK" }, wolf, true) as OnuwState;
+      continue;
+    }
     const impostor = live.players.find((p) => p.id !== actor.id)!.id;
     const centre = centreSlots(live);
 
@@ -671,11 +681,22 @@ function coupGame(...names: string[]): CoupState {
       again.players.every((p, i) => p.dealt === again.slots[i]),
       "everybody has a fresh card"
     );
-    // playable from there, rather than needing an action the room refuses
-    const first = actorsOf(again, again.step!)[0];
+    /*
+     * Playable from there, rather than needing an action the room refuses. The
+     * first role called may be one nobody was dealt — every role in the box is
+     * called — so tick past those the way the host does, then check whoever the
+     * night actually lands on can act.
+     */
+    let ready = again;
+    for (let i = 0; i < 12 && ready.phase === "night"; i++) {
+      if (actorsOf(ready, ready.step!).length > 0) break;
+      ready = wolves.apply(ready, { type: "TICK" }, wolf, true) as OnuwState;
+    }
+    check(ready.phase === "night", `a re-deal has a night to play, saw ${ready.phase}`);
+    const first = actorsOf(ready, ready.step!)[0];
     allows(
-      () => wolves.apply(again, { type: "WAKE_ACK", playerId: first.id }, first.id, false),
-      "the first role can act straight away after a re-deal"
+      () => wolves.apply(ready, { type: "WAKE_ACK", playerId: first.id }, first.id, false),
+      "the first role woken after a re-deal can act straight away"
     );
 
     const fresh = wolves.apply(live, { type: "NEW_GAME" }, wolf, true) as OnuwState;
@@ -692,7 +713,18 @@ function coupGame(...names: string[]): CoupState {
     (seen.match(/"notes":/g) ?? []).length === 1 && theirs.self.notes.length === 1,
     "nor anybody else's notebook"
   );
-  const scrubbed = JSON.stringify({ ...(wolves.view(state, stranger) as object), lineup: null });
+  /*
+   * Two fields are public on purpose: the box, and the narration cue naming the
+   * step being called out loud. The cue is only safe because every role in the
+   * box is called whether or not anybody holds it — if empty ones were skipped
+   * it would announce which roles are in the middle. Everything else is
+   * scrubbed against those two.
+   */
+  const scrubbed = JSON.stringify({
+    ...(wolves.view(state, stranger) as object),
+    lineup: null,
+    narrate: null,
+  });
   check(
     !scrubbed.includes("werewolf"),
     "and outside the box, the pack is never named to its neighbours"

@@ -1,6 +1,6 @@
-export type GameId = "kings-cup" | "coup";
+export type GameId = "kings-cup" | "coup" | "werewolf";
 
-export const GAME_IDS: GameId[] = ["kings-cup", "coup"];
+export const GAME_IDS: GameId[] = ["kings-cup", "coup", "werewolf"];
 
 export interface Seat {
   id: string;

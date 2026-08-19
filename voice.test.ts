@@ -6,10 +6,34 @@
  * narrator, and a character speaks only once its card has genuinely been turned
  * face up.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { initialState, reducer } from "./lib/coup/reducer";
 import { CHARACTERS } from "./lib/coup/deck";
 import type { ActionKind, Character, CoupState } from "./lib/coup/types";
-import { freshCues, primeFrom, VARIANTS } from "./lib/coup/voice";
+import { freshCues, primeFrom, VARIANTS, LINES as coupLinesFor } from "./lib/coup/voice";
+import { NIGHT_ORDER } from "./lib/werewolf/roles";
+import {
+  BED,
+  DUCK,
+  HOWL,
+  HOWL_GAP,
+  SOUNDS,
+  STING_LEAD_MS,
+  soundFile,
+  stingFile,
+  takeOf,
+} from "./lib/werewolf/ambience";
+import { CALL, DAWN, OPENING, SLEEP, WAKE, shown } from "./lib/werewolf/narration";
+import {
+  STEMS,
+  VOICE_ID,
+  VOICES as wwVoices,
+  fileFor,
+  sleepStem,
+  textFor,
+  wakeStem,
+} from "./lib/werewolf/voice";
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -368,6 +392,151 @@ for (const b of BLOCKS) {
     freshCues([{ id: 9, path: "b" }, { id: 8, path: "a" }], 7).map((c) => c.id).join() === "8,9",
     "cues are sorted before playing"
   );
+}
+
+// ---------- the Werewolf moderator ----------
+
+/**
+ * One speaker reading a fixed script, so the checks are different in kind:
+ * not "who is allowed to say this", but "does every line the screen shows have
+ * a recording behind it, saying the same words".
+ */
+{
+  const audio = path.join(process.cwd(), "public", "audio");
+
+  check(wwVoices.length === 1, "the moderator is the only voice in Werewolf");
+  check(
+    !Object.keys(coupLinesFor).includes(VOICE_ID),
+    "and its folder cannot collide with any of Coup's"
+  );
+
+  // every night step is both woken and sent back to bed
+  for (const step of NIGHT_ORDER) {
+    check(STEMS.includes(wakeStem(step)), `${step} has a line waking it`);
+    check(STEMS.includes(sleepStem(step)), `${step} has a line sending it to sleep`);
+  }
+  check(STEMS.includes("open"), "the night opens with a line");
+  check(STEMS.includes("dawn"), "and closes with one");
+  check(
+    STEMS.length === NIGHT_ORDER.length * 2 + 2,
+    `the script is exactly the night plus its two ends, saw ${STEMS.length} lines`
+  );
+
+  // the words spoken are the words printed — they are built from the same
+  // constants, and this is what stops a future edit untying them
+  for (const step of NIGHT_ORDER) {
+    check(textFor(wakeStem(step)) === WAKE[step], `the ${step} wake line matches the screen`);
+    check(textFor(sleepStem(step)) === SLEEP[step], `the ${step} sleep line matches the screen`);
+  }
+  check(textFor("open") === OPENING, "the opening line matches the screen");
+  check(textFor("dawn") === DAWN, "the closing line matches the screen");
+  check(
+    STEMS.every((s) => (textFor(s) ?? "").trim().length > 0),
+    "no line is empty"
+  );
+
+  // the table has to be told to wake up as well as to go to sleep
+  check(DAWN.includes("wake up"), `the night ends by waking everybody, saw "${DAWN}"`);
+  check(OPENING.includes("close your eyes"), `and opens by putting them under, saw "${OPENING}"`);
+
+  // every call leaves a beat between the name and the instruction, which is
+  // what the synthesiser reads as a pause
+  for (const step of NIGHT_ORDER) {
+    check(CALL[step].includes("..."), `the ${step} call pauses after the name`);
+    check(SLEEP[step].includes("..."), `so does the ${step} dismissal`);
+    check(CALL[step].includes("wake up"), `the ${step} call actually says "wake up"`);
+  }
+  check(OPENING.includes("...") && DAWN.includes("..."), "and so do both ends of the night");
+
+  // ...and none of it reaches the screen, because a reader does not need to be
+  // told to pause and three dots in gold-leaf caps looks like a typo
+  for (const line of [OPENING, DAWN, ...NIGHT_ORDER.flatMap((s) => [CALL[s], SLEEP[s]])]) {
+    check(!shown(line).includes("..."), `"${shown(line)}" is printed without the speech direction`);
+    check(shown(line).length > 0, "and still says something");
+  }
+  check(shown(OPENING) === "Everyone, close your eyes.", `printed opening reads "${shown(OPENING)}"`);
+  check(shown(DAWN) === "Everyone, wake up.", `printed dawn reads "${shown(DAWN)}"`);
+  check(
+    shown(CALL.werewolf) === "Werewolves, wake up.",
+    `printed wolf call reads "${shown(CALL.werewolf)}"`
+  );
+
+  // the moderator is a chosen voice, not a designed one, and speaks slowly
+  check(wwVoices[0].voiceId === "yVZDNqbDqdOCuvlmZGd4", "the moderator is pinned to one voice");
+  check(
+    (wwVoices[0].speed ?? 1) < 1,
+    `the moderator is slowed down, saw ${wwVoices[0].speed ?? 1}`
+  );
+
+  // ...and every one of them has actually been recorded
+  if (fs.existsSync(path.join(audio, VOICE_ID))) {
+    for (const stem of STEMS) {
+      const file = path.join(audio, `${fileFor(stem)!.replace("/audio/", "")}`);
+      const there = fs.existsSync(file);
+      check(there, `${stem} has a recording at ${fileFor(stem)}`);
+      if (there) check(fs.statSync(file).size > 2000, `${stem}'s recording is not a stub`);
+    }
+    // and nothing is left behind from a stem that has since been renamed
+    const onDisk = fs
+      .readdirSync(path.join(audio, VOICE_ID))
+      .filter((f) => f.endsWith(".mp3"))
+      .map((f) => f.replace(/_01\.mp3$/, ""));
+    for (const f of onDisk) {
+      check(STEMS.includes(f), `${f}.mp3 is on disk but no longer in the script`);
+    }
+  } else {
+    console.log("  (no recordings yet — run npx tsx scripts/generate-voices.ts)");
+  }
+
+  check(fileFor("no_such_line") === null, "an unknown stem resolves to silence, not a 404");
+}
+
+// ---------- the room tone ----------
+
+{
+  const audio = path.join(process.cwd(), "public");
+
+  check(
+    SOUNDS.length === 3 + NIGHT_ORDER.length,
+    `the bed, the howls, the cockerel and one sting per role — saw ${SOUNDS.length}`
+  );
+  check(BED.variants === 1 && HOWL.variants > 1, "the bed is one take; the howls are several");
+  check(BED.seconds >= 30, `the bed is long enough not to announce its own loop (${BED.seconds}s)`);
+  check(BED.music === true, "the bed is composed music, not an atmosphere");
+  check(
+    SOUNDS.filter((s) => s.music).length === 1,
+    "and it is the only thing cut on the music endpoint"
+  );
+  check(DUCK > 0 && DUCK < 1, "the bed ducks under the moderator rather than stopping");
+  check(HOWL_GAP[0] < HOWL_GAP[1], "howls land somewhere inside a range, not on a metronome");
+
+  // every role arrives on its own sound, before it is called by name
+  for (const step of NIGHT_ORDER) {
+    const file = stingFile(step);
+    check(SOUNDS.some((s) => soundFile(s.stem) === file), `${step} has a sting in the manifest`);
+    const onDisk = path.join(audio, file);
+    if (fs.existsSync(onDisk)) {
+      check(fs.statSync(onDisk).size > 3000, `${step}'s sting is real audio`);
+    }
+  }
+  check(STING_LEAD_MS > 0, "the sting gets a beat to itself before the line starts");
+
+  for (const spec of SOUNDS) {
+    for (let v = 1; v <= spec.variants; v++) {
+      const rel = soundFile(spec.stem, v);
+      const file = path.join(audio, rel);
+      if (!fs.existsSync(file)) {
+        console.log(`  (${rel} not cut yet — run npx tsx scripts/generate-sfx.ts)`);
+        continue;
+      }
+      check(fs.statSync(file).size > 4000, `${rel} is real audio, not a stub`);
+    }
+  }
+
+  // a repeated sound must actually be able to repeat differently
+  const takes = new Set(Array.from({ length: 40 }, () => takeOf(HOWL)));
+  check(takes.size === HOWL.variants, `every howl take gets used, saw ${takes.size}`);
+  check(takeOf(BED) === soundFile(BED.stem, 1), "the bed has only the one take to pick");
 }
 
 if (failures === 0) console.log("ALL VOICE MATRIX CHECKS PASSED");

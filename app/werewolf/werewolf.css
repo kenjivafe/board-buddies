@@ -1,0 +1,1537 @@
+/* ============================================================
+   ONE NIGHT WEREWOLF — the deck, laid out on a dark table
+
+   The skin is derived from the cards, the way Coup's is. They are
+   engraved tarot on aged parchment: oxblood, gold leaf, ink black,
+   forest green. So the page is the table they are lying on — dark
+   wood under one candle — and everything on it is either paper,
+   gold rule, or ink. Keeping the ground dark is deliberate: the
+   cards are the only light things in the game, and they should read
+   as objects sitting on the surface rather than holes cut in it.
+
+   The card art carries each character's printed name, so nothing is
+   ever drawn over it — labels sit underneath or on a chip at the
+   foot, clear of the caption band at the top of every card.
+   ============================================================ */
+
+[data-game="werewolf"] {
+  /* --- the table, after dark --- */
+  --bg: #14110c;
+  --surface: #1e1913;
+  --surface-2: #2a2317;
+  --text: #eddfc0;
+  --text-dim: #c2b08c;
+  --muted: #8a7a5c;
+  --line: rgba(237, 223, 192, 0.15);
+
+  /* --- gold leaf: the cards' own accent, and this page's --- */
+  --gold: #c9a227;
+  --gold-deep: #8f6f1c;
+  --accent: #c9a227;
+  --accent-ink: #17130b;
+  --danger: #a8302f;
+  --danger-ink: #f7e9df;
+
+  /* --- private --- */
+  --paper: #e3d3ae;
+  --paper-edge: #c9b487;
+  --blood: #8f2f30;
+  --moon: #f2e4bf;
+  --sun: #e8a94a;
+  --ink: #17120c;
+
+  /* --- three inks, one per side ---
+     A colour per role was thirteen colours that meant nothing: the thing worth
+     knowing at a glance is whose side a card is on, and there are only three
+     answers. Red is the pack, blue is the village, green is the Tanner, who is
+     on nobody's side at all. All three are lifted off the deck. */
+  --team-werewolf: #b0303a;
+  --team-village: #4a7fbe;
+  --team-tanner: #5c9450;
+
+  /* Inscriptional roman caps — the same thing the card names are cut in, and
+     legible at a glance, which a Didone at these sizes was not. */
+  --display: "Cinzel Variable", Cinzel, "Trajan Pro", Georgia, serif;
+  --display-vf: normal;
+  --sans: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+
+  /* the card art is 1024×1536 and every frame in the app follows it */
+  --card-ratio: 0.6667;
+  --radius: 10px;
+  position: relative;
+  z-index: 0;
+}
+
+/* The room. Fixed, so scrolling a long argument doesn't scroll the light away.
+   One candle low and to the left, and the moon through a window on the right. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 26% at 82% -6%, rgba(242, 228, 191, 0.13) 0%, transparent 62%),
+    radial-gradient(70% 44% at 12% 104%, rgba(201, 162, 39, 0.11) 0%, transparent 66%),
+    radial-gradient(120% 90% at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.55) 100%),
+    var(--bg);
+  transition: background 1200ms ease;
+}
+
+.sky[data-time="day"] {
+  background:
+    radial-gradient(56% 30% at 20% -8%, rgba(232, 169, 74, 0.22) 0%, transparent 64%),
+    radial-gradient(120% 90% at 50% 50%, transparent 44%, rgba(0, 0, 0, 0.42) 100%),
+    #191309;
+}
+
+.sky[data-time="dead"] {
+  background:
+    radial-gradient(64% 32% at 50% -6%, rgba(143, 47, 48, 0.26) 0%, transparent 64%),
+    radial-gradient(120% 90% at 50% 50%, transparent 36%, rgba(0, 0, 0, 0.6) 100%),
+    #120b09;
+}
+
+/* The grain the whole deck is printed on, laid over the page at a whisper so
+   flat panels don't read as plastic next to the cards. */
+.sky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.42'/%3E%3C/svg%3E");
+}
+
+/* ---------- the moon ---------- */
+
+/* A disc with a second disc bitten out of it. `--phase` slides the bite:
+   0 is full, 1 is a fingernail. Warm now, because everything here is. */
+.moon {
+  --phase: 0.34;
+  --size: 58px;
+  position: relative;
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  background: radial-gradient(70% 70% at 34% 30%, #fffaea 0%, var(--moon) 58%, #c0a976 100%);
+  box-shadow: 0 0 32px rgba(242, 228, 191, 0.26), 0 0 84px rgba(242, 228, 191, 0.1);
+  overflow: hidden;
+  flex: none;
+}
+
+.moon::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  transform: translateX(calc(var(--size) * var(--phase) * -1));
+}
+
+.moon.full::after {
+  display: none;
+}
+
+.moon::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  z-index: 1;
+  opacity: 0.42;
+  background:
+    radial-gradient(circle at 62% 30%, rgba(150, 130, 88, 0.6) 0 8%, transparent 9%),
+    radial-gradient(circle at 38% 62%, rgba(150, 130, 88, 0.5) 0 11%, transparent 12%),
+    radial-gradient(circle at 72% 68%, rgba(150, 130, 88, 0.45) 0 6%, transparent 7%);
+}
+
+/* the same disc at dawn */
+.moon.sun {
+  background: radial-gradient(70% 70% at 40% 34%, #ffeec6 0%, var(--sun) 56%, #b9762a 100%);
+  box-shadow: 0 0 34px rgba(232, 169, 74, 0.34), 0 0 88px rgba(232, 169, 74, 0.14);
+}
+
+.moon.sun::before,
+.moon.sun::after {
+  display: none;
+}
+
+/* ---------- the rule: a gold hairline with a lozenge in it ---------- */
+
+.rule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 18px 0 4px;
+  color: var(--gold);
+}
+
+.rule::before,
+.rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-deep) 35%, var(--gold-deep) 65%, transparent);
+  opacity: 0.7;
+}
+
+.rule > span {
+  font-size: 10.5px;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+}
+
+/* ---------- hero ---------- */
+
+.ww-hero {
+  position: relative;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 26px 18px 20px;
+  margin-top: 6px;
+  /* the double rule every card is trimmed with */
+  border: 1px solid var(--gold-deep);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgba(201, 162, 39, 0.07), transparent 60%),
+    rgba(30, 25, 19, 0.5);
+}
+
+.ww-hero::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(201, 162, 39, 0.3);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.ww-kicker {
+  font-size: 10px;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+[data-game="werewolf"] .title {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(34px, 10.5vw, 52px);
+  line-height: 1;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+[data-game="werewolf"] .title em {
+  font-style: normal;
+  color: var(--gold);
+}
+
+.ww-sub {
+  margin: 0 auto;
+  max-width: 33ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* ---------- shapes this game re-declares (Coup's stylesheet isn't loaded here) ---------- */
+
+[data-game="werewolf"] .gate {
+  margin: auto 0;
+  padding: 5vh 0;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+[data-game="werewolf"] .gate-name {
+  font-family: var(--display);
+  font-size: clamp(25px, 7.8vw, 36px);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+[data-game="werewolf"] .gate-note {
+  margin: 0 auto;
+  max-width: 32ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+[data-game="werewolf"] .gate .btn {
+  margin-top: 6px;
+  min-width: 220px;
+}
+
+[data-game="werewolf"] .field-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+  width: 100%;
+}
+
+[data-game="werewolf"] .btn {
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+[data-game="werewolf"] .btn-primary {
+  background: linear-gradient(180deg, #dcb63a, var(--gold) 60%, #a8831d);
+  color: var(--accent-ink);
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 244, 205, 0.5);
+}
+
+[data-game="werewolf"] .btn-ghost {
+  border: 1px solid var(--gold-deep);
+  color: var(--text-dim);
+  background: transparent;
+}
+
+[data-game="werewolf"] .text-input {
+  border-radius: 3px;
+  border-color: var(--gold-deep);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+}
+
+.ww-section {
+  margin-top: 20px;
+}
+
+.setup-footer {
+  margin-top: auto;
+  padding-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ---------- panels: everything raised is a plate on the table ---------- */
+
+.player-row,
+.lineup-row,
+.board-row,
+.note,
+.reading,
+.tally-row,
+.key-row,
+.clock,
+.lineup-count,
+.pick {
+  background:
+    linear-gradient(180deg, rgba(201, 162, 39, 0.045), transparent 70%),
+    var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+/* ---------- the roster ---------- */
+
+.player-list {
+  list-style: none;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+}
+
+.player-row .seat {
+  font-family: var(--display);
+  font-size: 13px;
+  color: var(--gold);
+  width: 16px;
+}
+
+.player-row .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+/* ---------- the box ---------- */
+
+.lineup {
+  list-style: none;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.lineup-row {
+  --c: var(--team-village);
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 10px 7px 8px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.lineup-row.on {
+  border-color: color-mix(in srgb, var(--c) 50%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c) 15%, var(--surface)) 0%, var(--surface) 64%);
+}
+
+.lineup-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lineup-name {
+  font-family: var(--display);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lineup-blurb {
+  font-size: 11.5px;
+  line-height: 1.42;
+  color: var(--muted);
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+
+.stepper output {
+  min-width: 18px;
+  text-align: center;
+  font-family: var(--display);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+[data-game="werewolf"] .icon-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  border: 1px solid var(--gold-deep);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: var(--text-dim);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+[data-game="werewolf"] .icon-btn[disabled] {
+  opacity: 0.3;
+}
+
+.lineup-count {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 11px 13px;
+  border-style: dashed;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.lineup-count.bad {
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+  color: #e0917f;
+}
+
+.lineup-count strong {
+  flex: none;
+  font-family: var(--display);
+  font-size: 15px;
+  color: var(--gold);
+}
+
+.clock-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.clock-row button {
+  flex: 1;
+  padding: 9px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock-row button[aria-pressed="true"] {
+  border-color: var(--gold-deep);
+  background: color-mix(in srgb, var(--gold) 15%, var(--surface));
+  color: var(--paper);
+}
+
+/* ---------- the cards ---------- */
+
+/* The art prints its own name across the top AND carries its own painted
+   frame, so this adds neither — a second border around a card that already has
+   one just reads as a mistake. All this does is round the corners to match and
+   lift the card off the table. */
+.role-card {
+  --c: var(--team-village);
+  --w: min(216px, 64vw);
+  position: relative;
+  display: block;
+  width: var(--w);
+  aspect-ratio: var(--card-ratio);
+  border-radius: 8px;
+  overflow: hidden;
+  flex: none;
+  background: var(--ink);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+.role-card img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* a chip at the FOOT of the card, clear of the printed name at the top */
+.role-card-chip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 14px 8px 6px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: linear-gradient(180deg, transparent, rgba(8, 6, 3, 0.94) 58%);
+}
+
+/* the sizes a card is drawn at, largest first */
+.role-card.md {
+  --w: min(148px, 40vw);
+  border-radius: 6px;
+}
+
+.role-card.sm {
+  --w: 78px;
+  border-radius: 4px;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+
+.role-card.xs {
+  --w: 38px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+/* a card nobody has turned over: the deck's own back, in gold on oxblood */
+.card-back {
+  --w: min(216px, 64vw);
+  position: relative;
+  width: var(--w);
+  aspect-ratio: var(--card-ratio);
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(45deg, rgba(201, 162, 39, 0.07) 0 2px, transparent 2px 8px),
+    radial-gradient(80% 60% at 50% 40%, #3a1a1b 0%, #22100f 100%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+}
+
+.card-back::after {
+  content: "";
+  position: absolute;
+  inset: 7%;
+  border: 1px solid rgba(201, 162, 39, 0.45);
+  border-radius: 3px;
+}
+
+.card-back.md {
+  --w: min(148px, 40vw);
+  border-radius: 6px;
+}
+
+.card-back.sm {
+  --w: 78px;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.card-back.xs {
+  --w: 38px;
+  border-radius: 3px;
+  box-shadow: none;
+}
+
+/* the caption under a card, where the art is too small to read its own name */
+.card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.card-cap {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  text-align: center;
+  max-width: 15ch;
+  line-height: 1.3;
+}
+
+.card-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+/* what a card actually does, printed under it rather than over the art */
+.role-brief {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.role-brief-name {
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.role-brief-team {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--c, var(--team-village));
+}
+
+.role-brief-blurb {
+  margin: 9px auto 0;
+  max-width: 30ch;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+/* ---------- hold-to-look ---------- */
+
+.peek {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.peek-card {
+  position: relative;
+  width: min(216px, 64vw);
+  aspect-ratio: var(--card-ratio);
+}
+
+.peek-card > * {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transition: opacity 150ms ease;
+}
+
+.peek-card .front {
+  opacity: 0;
+}
+
+.peek.open .peek-card .front {
+  opacity: 1;
+}
+
+.peek.open .peek-card .back {
+  opacity: 0;
+}
+
+.peek-label {
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* ---------- choosing ---------- */
+
+/* The ballot. Every card is face down and identical at the vote, so a row of
+   card backs would carry nothing — this is a list of names you can hit fast. */
+/* Two columns: a ballot is a short label repeated once per player, and in one
+   column a full table was mostly whitespace and scrolling. */
+.pick-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* an odd one out spans the row rather than leaving a gap beside it */
+.pick-list > li:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.pick {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.pick:active {
+  transform: scale(0.99);
+}
+
+.pick[aria-pressed="true"] {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+}
+
+.pick-mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  border: 1px solid var(--gold-deep);
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.pick[aria-pressed="true"] .pick-mark {
+  border-color: transparent;
+  background: var(--gold);
+  color: var(--accent-ink);
+}
+
+.pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.pick-tag {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--gold-deep);
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+
+/* At night, reaching for somebody's card is what the role is doing — so that
+   choice is laid out exactly like choosing one from the middle. */
+.pick-grid {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 10px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.pick-grid > li {
+  width: calc((100% - 20px) / 3);
+  max-width: 148px;
+}
+
+.pick-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  background: none;
+  border: none;
+  transition: transform 160ms ease;
+}
+
+.pick-card .card-back {
+  width: 100%;
+  border-radius: 6px;
+  transition: box-shadow 160ms ease;
+}
+
+.pick-card[aria-pressed="true"] {
+  transform: translateY(-7px);
+}
+
+.pick-card[aria-pressed="true"] .card-back {
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.6), 0 0 0 2px var(--gold);
+}
+
+.pick-card-name {
+  font-family: var(--display);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick-card[aria-pressed="true"] .pick-card-name {
+  color: var(--gold);
+}
+
+.pick-card-tag {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+  border: 1px solid var(--gold-deep);
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-top: -2px;
+}
+
+/* The three in the middle. They are the thing being chosen, so they take the
+   whole width between them rather than sitting in a row of thumbnails. */
+.centre-pick {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.centre-card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 148px;
+  background: none;
+  border: none;
+  padding: 0;
+  border-radius: 8px;
+  transition: transform 160ms ease;
+}
+
+.centre-pick .card-slot {
+  width: 100%;
+}
+
+.centre-pick .card-back {
+  width: 100%;
+  border-radius: 6px;
+}
+
+.centre-card[aria-pressed="true"] {
+  transform: translateY(-7px);
+}
+
+.centre-card[aria-pressed="true"] .card-back {
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.6), 0 0 0 2px var(--gold);
+}
+
+.centre-card[disabled] {
+  opacity: 0.35;
+}
+
+/* ---------- the table ---------- */
+
+.board {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.board-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.board-row.you {
+  border-color: var(--gold-deep);
+}
+
+.board-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board-note {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+/* ---------- the notebook ---------- */
+
+.notebook {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.note {
+  padding: 13px 15px;
+  border-left: 2px solid var(--gold-deep);
+  border-radius: 0 4px 4px 0;
+}
+
+.note-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-dim);
+}
+
+.note .card-row {
+  margin-top: 12px;
+  justify-content: center;
+}
+
+.note.fresh {
+  border-left-color: var(--gold);
+}
+
+.note.fresh .note-text {
+  color: var(--text);
+}
+
+/* What a role was actually shown is the whole point of waking them up, so it
+   is given the room a card deserves rather than a thumbnail in a box. */
+.told {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.told-text {
+  margin: 0 auto 4px;
+  max-width: 32ch;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.told .card-row {
+  margin-top: 14px;
+}
+
+.told + .told {
+  margin-top: 22px;
+}
+
+/* ---------- the argument ---------- */
+
+.clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.clock-time {
+  font-family: var(--display);
+  font-size: clamp(34px, 11vw, 48px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper);
+}
+
+.clock.out .clock-time {
+  color: var(--danger);
+}
+
+/* ---------- the count ---------- */
+
+.tally {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.tally-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.tally-row.killed {
+  border-color: color-mix(in srgb, var(--blood) 65%, transparent);
+  background: color-mix(in srgb, var(--blood) 18%, var(--surface));
+}
+
+.tally-count {
+  font-family: var(--display);
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+}
+
+.tally-voters {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ---------- night furniture ---------- */
+
+.night-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0 4px;
+}
+
+.night-head .moon {
+  --size: 38px;
+}
+
+.night-title {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.night-title strong {
+  font-family: var(--display);
+  font-size: 18px;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.reading {
+  margin-top: 14px;
+  padding: 18px 16px;
+  text-align: center;
+}
+
+.reading-verdict {
+  display: block;
+  margin-top: 5px;
+  font-family: var(--display);
+  font-size: clamp(20px, 6.2vw, 27px);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.sleeping {
+  margin: auto 0;
+  padding: 9vh 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.sleeping .moon {
+  --size: 72px;
+  animation: breathe 5.5s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    filter: brightness(0.9);
+  }
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+.sleeping-note {
+  max-width: 30ch;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* ---------- the beat between two roles ---------- */
+
+.beat {
+  position: relative;
+  margin: auto 0;
+  padding: 6vh 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  text-align: center;
+}
+
+.beat .moon {
+  animation: breathe 5.5s ease-in-out infinite;
+}
+
+.beat-line {
+  min-height: 1.55em;
+  max-width: 26ch;
+  font-size: 14.5px;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* the summons, set the size it would be said at */
+.beat-call {
+  max-width: 15ch;
+  font-family: var(--display);
+  font-size: clamp(23px, 7vw, 32px);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  color: var(--paper);
+  animation: called 420ms ease-out both;
+}
+
+@keyframes called {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.beat-instruction {
+  margin-top: -8px;
+  max-width: 32ch;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-dim);
+  animation: called 420ms 60ms ease-out both;
+}
+
+.beat-count {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--gold-deep);
+  font-family: var(--display);
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  color: var(--gold);
+  animation: tick 1s linear infinite;
+}
+
+@keyframes tick {
+  from {
+    border-color: var(--gold);
+  }
+  to {
+    border-color: rgba(143, 111, 28, 0.35);
+  }
+}
+
+.beat .btn {
+  min-width: 240px;
+}
+
+/* The controls that have to be reachable whatever screen the night is on: the
+   narrator's mute, and the way out. Sticky, because the night is a sequence of
+   full-height screens and a control at the top of one of them is gone by the
+   next. */
+.game-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  margin: -4px -4px 0;
+  padding: 4px;
+}
+
+.bar-btn {
+  min-height: 30px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--gold-deep);
+  background: rgba(10, 8, 5, 0.72);
+  backdrop-filter: blur(6px);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.bar-btn[aria-pressed="true"] {
+  opacity: 0.55;
+}
+
+/* the sheet the way out opens into */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(6, 5, 3, 0.74);
+  backdrop-filter: blur(3px);
+}
+
+.sheet-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--gold-deep);
+  background: var(--surface);
+  text-align: center;
+}
+
+/* the narrator's control where it floats on the beat itself */
+.mute-btn {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 2;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  line-height: 1;
+  border: 1px solid var(--gold-deep);
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0.8;
+}
+
+.mute-btn[aria-pressed="true"] {
+  opacity: 0.42;
+}
+
+/* the last line of the script, at the top of the day */
+.dawn-call {
+  margin: 0 0 12px;
+  max-width: none;
+  color: var(--sun);
+}
+
+/* ---------- your own card, at the foot of your own device ---------- */
+
+.you-are {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.you-are-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.you-are-name {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.you-are-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ---------- the end ---------- */
+
+.verdict {
+  text-align: center;
+  padding: 18px 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.verdict-team {
+  font-family: var(--display);
+  font-size: clamp(29px, 9vw, 44px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.verdict.werewolf .verdict-team {
+  color: var(--team-werewolf);
+}
+
+.verdict.village .verdict-team {
+  color: var(--team-village);
+}
+
+.verdict.tanner .verdict-team {
+  color: var(--team-tanner);
+}
+
+.verdict.nobody .verdict-team {
+  color: var(--muted);
+}
+
+/* ---------- the reveal, by side ---------- */
+
+/* Each side gets its own block, winners first. The cards are the point of the
+   screen, so they are laid out at the size the middle is shown at rather than
+   shrunk into a list of rows. */
+.side {
+  --c: var(--team-village);
+  margin-top: 22px;
+}
+
+.side .rule {
+  color: var(--c);
+}
+
+.side .rule::before,
+.side .rule::after {
+  background: linear-gradient(90deg, transparent, var(--c) 35%, var(--c) 65%, transparent);
+  opacity: 0.55;
+}
+
+.side.won .rule > span {
+  color: var(--c);
+  font-weight: 600;
+}
+
+/* Three to a line, so a table of six reads as two rows rather than a column
+   you have to scroll. `.trio` puts the middle on the same grid at the foot of
+   the page, because it is the same kind of thing being shown the same way. */
+.hand-row,
+.card-row.trio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 10px;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.hand,
+.card-row.trio .card-slot {
+  width: calc((100% - 20px) / 3);
+  max-width: 148px;
+}
+
+.hand .role-card,
+.card-row.trio .role-card,
+.card-row.trio .card-back {
+  width: 100%;
+}
+
+/* One player's hand. The art already prints the role, so the only thing under
+   it is who was holding it. */
+.hand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.hand .role-card {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+.side.won .hand .role-card {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5), 0 0 0 2px var(--c);
+}
+
+.hand-name {
+  font-family: var(--display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--paper);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hand-note {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: -2px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  text-align: center;
+}
+
+.hand-fate {
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d99aa6;
+  border: 1px solid color-mix(in srgb, var(--blood) 60%, transparent);
+  background: color-mix(in srgb, var(--blood) 22%, transparent);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* the dead are still shown, just plainly not in the game any more */
+.hand.killed .role-card {
+  filter: saturate(0.5) brightness(0.66);
+}
+
+.hand.killed .hand-name {
+  color: var(--muted);
+}
+
+/* ---------- the role key ---------- */
+
+.key-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.key-row {
+  --c: var(--team-village);
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  padding: 7px 11px 7px 7px;
+}
+
+.key-body {
+  min-width: 0;
+}
+
+.key-name {
+  font-size: 13.5px;
+  color: var(--paper);
+}
+
+.key-count {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.key-blurb {
+  display: block;
+  font-size: 11.5px;
+  line-height: 1.42;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sky,
+  .sleeping .moon,
+  .beat .moon,
+  .beat-call,
+  .beat-instruction,
+  .beat-count,
+  .pick-card,
+  .pick-card .card-back,
+  .lineup-row,
+  .centre-card,
+  .peek-card > * {
+    transition: none;
+    animation: none;
+  }
+}

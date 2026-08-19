@@ -12,11 +12,23 @@ import {
   type Action as KcAction,
 } from "@/lib/kings-cup/reducer";
 import type { GameState as KcState, KingMode } from "@/lib/kings-cup/types";
+import {
+  actorsOf as wwActors,
+  initialState as wwInitial,
+  reducer as wwReducer,
+  type Action as WwAction,
+} from "@/lib/werewolf/reducer";
+import { MAX_PLAYERS, MIN_PLAYERS, lineupProblem } from "@/lib/werewolf/roles";
+import { viewFor as wwViewFor } from "@/lib/werewolf/view";
+import type { NightStep, OnuwState, Role as WwRole } from "@/lib/werewolf/types";
 import { RoomError, type GameId, type Seat } from "./types";
 
 export interface StartOptions {
   /** King's Cup only */
   kingMode?: KingMode;
+  /** Werewolf only */
+  lineup?: Record<WwRole, number>;
+  discussionSeconds?: number;
 }
 
 interface Adapter {
@@ -214,7 +226,133 @@ const kingsCup: Adapter = {
   },
 };
 
-const ADAPTERS: Record<GameId, Adapter> = { coup, "kings-cup": kingsCup };
+// ---------- Werewolf (One Night) ----------
+
+/**
+ * The deal exists only because a shared phone has to be handed round. On
+ * separate devices the card you were dealt simply sits on your own screen all
+ * game, so the round is walked through here rather than rendered.
+ */
+function skipOnuwDeal(state: OnuwState): OnuwState {
+  let next = state;
+  // one pass per seat, so this always drains; the ceiling is only here so a
+  // future change can't wedge the server
+  for (let guard = 0; guard <= MAX_PLAYERS && next.phase === "deal"; guard++) {
+    next = wwReducer(next, { type: "DEAL_NEXT" });
+  }
+  return next;
+}
+
+const werewolf: Adapter = {
+  minSeats: MIN_PLAYERS,
+  maxSeats: MAX_PLAYERS,
+
+  start(seats, options) {
+    const lineup = options.lineup;
+    if (!lineup) throw new RoomError("bad-action", "Pick a lineup first.", 400);
+    // the host names the cards, so the host is exactly who must not be trusted
+    // with them — a box of nothing but werewolves is one POST away otherwise
+    const problem = lineupProblem(lineup, seats.length);
+    if (problem) throw new RoomError("bad-action", problem, 400);
+
+    return skipOnuwDeal(
+      wwReducer(wwInitial(), {
+        type: "START",
+        players: seats.map((s) => ({ id: s.id, name: s.name })),
+        lineup,
+        discussionSeconds: Math.min(
+          1800,
+          Math.max(0, Math.floor(options.discussionSeconds ?? 300))
+        ),
+      })
+    );
+  },
+
+  apply(raw, rawAction, actorId, isHost) {
+    const state = raw as OnuwState;
+    const action = rawAction as WwAction;
+
+    /** The role that is on the table right now must be one this seat was dealt. */
+    const isActor = (step: NightStep) =>
+      state.step === step && wwActors(state, step).some((p) => p.id === actorId);
+
+    switch (action.type) {
+      case "WAKE_ACK":
+        if (action.playerId !== actorId) deny("You can only answer for yourself.");
+        if (!state.step || !isActor(state.step)) deny("Nothing woke you.");
+        break;
+
+      case "SEER":
+        if (!isActor("seer")) deny("That reading is not yours to take.");
+        break;
+
+      case "ROBBER":
+        if (!isActor("robber")) deny("Those are not your hands.");
+        break;
+
+      case "WITCH_LOOK":
+      case "WITCH_PLACE":
+      case "WITCH_PASS":
+        if (!isActor("witch")) deny("That is not your business with the middle.");
+        break;
+
+      case "TROUBLEMAKER":
+        if (!isActor("troublemaker")) deny("That is not your trouble to cause.");
+        break;
+
+      case "DRUNK":
+        if (!isActor("drunk")) deny("You are not the one who has been drinking.");
+        break;
+
+      case "INSOMNIAC":
+        if (!isActor("insomniac")) deny("You slept fine.");
+        break;
+
+      case "VOTE":
+        if (action.voterId !== actorId) deny("You can only point for yourself.");
+        break;
+
+      case "OPEN_VOTE":
+        // somebody has to call time on the argument, and that is the host
+        if (!isHost) deny("The host calls the vote.");
+        break;
+
+      case "RESTART":
+      case "NEW_GAME":
+        if (!isHost) deny("Only the host can deal again.");
+        break;
+
+      case "DEAL_NEXT":
+        // rooms deal to every device at once, so nobody walks anything along
+        deny("Not available in a room.");
+        break;
+
+      case "UNDO":
+        // undo would rewind cards people have already been shown
+        deny("Undo is only available on a single device.");
+        break;
+
+      default:
+        throw new RoomError("bad-action", "Unknown action.", 400);
+    }
+
+    return wwReducer(state, action);
+  },
+
+  view(state, viewerId) {
+    return wwViewFor(state as OnuwState, viewerId);
+  },
+
+  finished(state) {
+    return (state as OnuwState).phase === "ended";
+  },
+
+  atSetup(state) {
+    return (state as OnuwState).phase === "setup";
+  },
+};
+
+const ADAPTERS: Record<GameId, Adapter> = { coup, "kings-cup": kingsCup, werewolf };
 
 export function adapterFor(game: GameId): Adapter {
   const adapter = ADAPTERS[game];

@@ -21,9 +21,11 @@ export default function RoomShell({
   code: string;
   game: GameId;
   minSeats: number;
-  /** host-only pre-game controls */
-  lobbyExtra?: React.ReactNode;
-  startOptions?: Record<string, unknown>;
+  /** host-only pre-game controls. Given the room, because most such controls
+      (Werewolf's lineup, say) have to size themselves to who has turned up. */
+  lobbyExtra?: (room: RoomView) => React.ReactNode;
+  /** read when the host actually presses start, so it can follow those controls */
+  startOptions?: (room: RoomView) => Record<string, unknown>;
   children: (room: RoomView, dispatch: (action: unknown) => void) => React.ReactNode;
 }) {
   const { room, status, error, seated, dispatch, start, leave } = useRoom(code);
@@ -133,8 +135,8 @@ export default function RoomShell({
           room={room}
           minSeats={minSeats}
           error={error}
-          extra={lobbyExtra}
-          onStart={() => void start(startOptions).catch(() => {})}
+          extra={lobbyExtra?.(room)}
+          onStart={() => void start(startOptions?.(room)).catch(() => {})}
           onLeave={() => {
             void leave().finally(() => {
               window.location.href = `/${game}`;

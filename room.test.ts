@@ -8,7 +8,21 @@ import {
   reducer as kcReducer,
 } from "./lib/kings-cup/reducer";
 import type { GameState as KcState } from "./lib/kings-cup/types";
+import {
+  actorsOf,
+  centreSlots,
+  initialState as wwInitial,
+  reducer as wwReducer,
+} from "./lib/werewolf/reducer";
+import { ROLES } from "./lib/werewolf/roles";
+import type { OnuwState, Role as WwRole } from "./lib/werewolf/types";
 import { RoomError, type Seat } from "./lib/room/types";
+
+/** A full lineup record from just the roles you care about. */
+const wwLineup = (counts: Partial<Record<WwRole, number>>): Record<WwRole, number> => ({
+  ...(Object.fromEntries(ROLES.map((r) => [r, 0])) as Record<WwRole, number>),
+  ...counts,
+});
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -459,6 +473,186 @@ function coupGame(...names: string[]): CoupState {
   const before = state.players[0].coins;
   state = reducer(state, { type: "PASS", playerId: "p1" });
   check(state.players[0].coins === before + 3, "one opponent, one pass");
+}
+
+// ---------- Werewolf (One Night) ----------
+
+{
+  const wolves = adapterFor("werewolf");
+  const village = seats("Ana", "Ben", "Cleo", "Dev", "Eve");
+  // five players, so the box must hold exactly eight cards
+  const box = wwLineup({
+    werewolf: 1,
+    seer: 1,
+    robber: 1,
+    troublemaker: 1,
+    witch: 1,
+    prince: 1,
+    villager: 2,
+  });
+
+  // the host names the cards, so the host is exactly who must not be trusted
+  denies(
+    () => wolves.start(village, { lineup: wwLineup({ werewolf: 1, villager: 3, seer: 1, tanner: 1 }) }),
+    "a box of six for five players is refused — the middle needs three of its own"
+  );
+  denies(
+    () => wolves.start(village, { lineup: wwLineup({ werewolf: 1, mason: 1, villager: 3, seer: 1, tanner: 1, prince: 1 }) }),
+    "and a lone Mason is refused"
+  );
+  denies(() => wolves.start(village, {}), "a room cannot start with no box at all");
+  denies(
+    () => wolves.start(village, { lineup: wwLineup({ werewolf: 3, villager: 3, seer: 1, tanner: 1 }) }),
+    "a third werewolf is not in the box, whoever asks"
+  );
+
+  const opened = wolves.start(village, { lineup: box, discussionSeconds: 300 }) as OnuwState;
+  check(opened.phase === "night", `a room starts at the night, not in ${opened.phase}`);
+  check(opened.slots.length === 8, "five seats and three in the middle");
+  check(
+    opened.players.every((p, i) => p.dealt === opened.slots[i]),
+    "the deal is walked through rather than rendered"
+  );
+
+  /**
+   * The deal is shuffled, so which cards reach players is up to chance. The
+   * authorization walk below needs to know exactly who holds what, so it forces
+   * the seating and re-opens the night through the reducer.
+   */
+  const forced: WwRole[] = [
+    "werewolf",
+    "seer",
+    "robber",
+    "witch",
+    "villager",
+    "troublemaker",
+    "prince",
+    "villager",
+  ];
+  const seeded = wwReducer(wwInitial(), {
+    type: "START",
+    players: village.map((s) => ({ id: s.id, name: s.name })),
+    lineup: box,
+    discussionSeconds: 300,
+  });
+  let state = {
+    ...seeded,
+    slots: forced,
+    players: seeded.players.map((p, i) => ({ ...p, dealt: forced[i] })),
+  } as OnuwState;
+  while (state.phase === "deal") state = wwReducer(state, { type: "DEAL_NEXT" });
+
+  const dealt = (role: WwRole) => state.players.find((p) => p.dealt === role)!.id;
+  const wolf = dealt("werewolf");
+  const seer = dealt("seer");
+  const stranger = dealt("villager");
+
+  check(state.step === "werewolf", "and lands on the pack");
+
+  denies(
+    () => wolves.apply(state, { type: "DEAL_NEXT" }, wolf, true),
+    "nobody walks the deal along in a room"
+  );
+  denies(
+    () => wolves.apply(state, { type: "UNDO" }, wolf, true),
+    "undo would rewind cards people have already been shown"
+  );
+  denies(
+    () => wolves.apply(state, { type: "WAKE_ACK", playerId: wolf }, stranger, true),
+    "you cannot answer on somebody else's behalf"
+  );
+  denies(
+    () => wolves.apply(state, { type: "WAKE_ACK", playerId: stranger }, stranger, true),
+    "and nothing woke you if you were dealt a villager"
+  );
+  allows(
+    () => wolves.apply(state, { type: "WAKE_ACK", playerId: wolf }, wolf, false),
+    "the wolf may answer for themselves"
+  );
+
+  // every acting role is checked against the card that seat was actually dealt
+  denies(
+    () => wolves.apply(state, { type: "SEER", targetId: wolf, centreSlots: [] }, seer, false),
+    "the seer cannot jump the queue while the pack is still up"
+  );
+
+  const night = wolves.apply(state, { type: "WAKE_ACK", playerId: wolf }, wolf, false) as OnuwState;
+  check(night.step === "seer", "the pack answers and the seer is next");
+  denies(
+    () => wolves.apply(night, { type: "SEER", targetId: wolf, centreSlots: [] }, stranger, false),
+    "a reading is not somebody else's to take"
+  );
+  allows(
+    () => wolves.apply(night, { type: "SEER", targetId: wolf, centreSlots: [] }, seer, false),
+    "but it is the seer's"
+  );
+
+  // walk the rest of the night, checking each actor as we go
+  let live = wolves.apply(
+    night,
+    { type: "SEER", targetId: wolf, centreSlots: [] },
+    seer,
+    false
+  ) as OnuwState;
+
+  let guard = 0;
+  while (live.phase === "night" && guard++ < 20) {
+    const step = live.step!;
+    const actor = actorsOf(live, step)[0];
+    const impostor = live.players.find((p) => p.id !== actor.id)!.id;
+    const centre = centreSlots(live);
+
+    const action =
+      step === "robber"
+        ? { type: "ROBBER", targetId: null }
+        : step === "witch"
+          ? { type: "WITCH_PASS" }
+          : step === "troublemaker"
+            ? { type: "TROUBLEMAKER", aId: null, bId: null }
+            : step === "drunk"
+              ? { type: "DRUNK", centreSlot: centre[0] }
+              : step === "insomniac"
+                ? { type: "INSOMNIAC" }
+                : { type: "WAKE_ACK", playerId: actor.id };
+
+    denies(
+      () => wolves.apply(live, action, impostor, true),
+      `${step}: nobody else may act on it, host or not`
+    );
+    live = wolves.apply(live, action, actor.id, false) as OnuwState;
+  }
+  check(live.phase === "day", `the night runs out into the day, saw ${live.phase}`);
+
+  // daylight
+  denies(() => wolves.apply(live, { type: "OPEN_VOTE" }, wolf, false), "only the host calls the vote");
+  denies(() => wolves.apply(live, { type: "NEW_GAME" }, wolf, false), "only the host deals again");
+
+  const open = wolves.apply(live, { type: "OPEN_VOTE" }, wolf, true) as OnuwState;
+  check(open.phase === "vote", "the host opens the ballot");
+  denies(
+    () => wolves.apply(open, { type: "VOTE", voterId: wolf, targetId: seer }, seer, false),
+    "you cannot point somebody else's finger"
+  );
+  allows(
+    () => wolves.apply(open, { type: "VOTE", voterId: wolf, targetId: seer }, wolf, false),
+    "you may point your own"
+  );
+
+  // the view a seated player gets is the redacted one
+  const theirs = wolves.view(state, stranger) as { self: { notes: unknown[] } };
+  const seen = JSON.stringify(theirs);
+  check(!seen.includes('"past"'), "the undo stack never reaches the wire");
+  check(!seen.includes('"slots"'), "nor does the map of where every card is");
+  // exactly one notebook travels, and it is the viewer's own
+  check(
+    (seen.match(/"notes":/g) ?? []).length === 1 && theirs.self.notes.length === 1,
+    "nor anybody else's notebook"
+  );
+  const scrubbed = JSON.stringify({ ...(wolves.view(state, stranger) as object), lineup: null });
+  check(
+    !scrubbed.includes("werewolf"),
+    "and outside the box, the pack is never named to its neighbours"
+  );
 }
 
 if (failures === 0) console.log("ALL ROOM TESTS PASSED");

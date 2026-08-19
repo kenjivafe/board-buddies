@@ -1,5 +1,5 @@
 /**
- * Synthesises every voice line in lib/coup/voice.ts into public/audio/.
+ * Synthesises every voice line in the game manifests into public/audio/.
  *
  *   npx tsx scripts/generate-voices.ts           # only what is missing
  *   npx tsx scripts/generate-voices.ts --dry     # cost estimate, no API calls
@@ -10,12 +10,41 @@
  * and is shown only once when you create it. The value listed beside a key in
  * the dashboard is its ID, not the key, and will be rejected.
  *
- * The six voice ids are cached in public/audio/voices.json so reruns reuse the
- * same cast. Delete that file (or pass --voices) to design a new one.
+ * Voice ids are cached in public/audio/voices.json so reruns reuse the same
+ * cast. Delete that file (or pass --voices) to design a new one.
+ *
+ * A voice id doubles as its folder under public/audio, so a game that would
+ * otherwise collide namespaces itself: Coup's narrator is `narrator`, and
+ * Werewolf's is `werewolf/moderator`.
  */
 import fs from "node:fs";
 import path from "node:path";
-import { LINES, VOICES } from "../lib/coup/voice";
+import { LINES as coupLines, VOICES as coupVoices } from "../lib/coup/voice";
+import { LINES as wwLines, VOICES as wwVoices } from "../lib/werewolf/voice";
+
+interface Profile {
+  id: string;
+  description: string;
+  /** what the designer reads back while auditioning; falls back to Coup's */
+  preview?: string;
+  /** an existing voice to use as-is, instead of designing one */
+  voiceId?: string;
+  /** 0.7–1.2, passed straight through to the synthesiser */
+  speed?: number;
+}
+
+const VOICES: Profile[] = [...coupVoices, ...wwVoices];
+const LINES: Record<string, Record<string, string[]>> = { ...coupLines, ...wwLines };
+
+const DEFAULT_PREVIEW =
+  "The court does not forgive carelessness. Every claim invites a challenge, and every challenge has a price. Consider carefully before you speak.";
+
+/** "werewolf/moderator" → "Werewolf Moderator", for the name upstream. */
+const label = (id: string) =>
+  id
+    .split("/")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
 
 const ROOT = path.resolve(import.meta.dirname ?? ".", "..");
 const OUT = path.join(ROOT, "public", "audio");
@@ -104,6 +133,13 @@ async function designCast(only?: string[]): Promise<Record<string, string>> {
     ? (JSON.parse(fs.readFileSync(CAST_FILE, "utf8")) as Record<string, string>)
     : {};
   for (const voice of VOICES.filter((v) => (only ? only.includes(v.id) : !cast[v.id]))) {
+    // a pinned voice is somebody's own, already on the account: use it, don't
+    // design over it, and never delete it
+    if (voice.voiceId) {
+      cast[voice.id] = voice.voiceId;
+      console.log(`  ${voice.id} is pinned to ${voice.voiceId}`);
+      continue;
+    }
     console.log(`  designing ${voice.id}…`);
     const previewRes = await api(`${API}/text-to-voice/create-previews`, {
       method: "POST",
@@ -111,7 +147,7 @@ async function designCast(only?: string[]): Promise<Record<string, string>> {
       body: JSON.stringify({
         voice_description: voice.description,
         // long enough for the designer to show real character
-        text: "The court does not forgive carelessness. Every claim invites a challenge, and every challenge has a price. Consider carefully before you speak.",
+        text: voice.preview ?? DEFAULT_PREVIEW,
       }),
     });
     const { previews } = (await previewRes.json()) as {
@@ -121,7 +157,7 @@ async function designCast(only?: string[]): Promise<Record<string, string>> {
       method: "POST",
       headers,
       body: JSON.stringify({
-        voice_name: `Coup ${voice.id[0].toUpperCase()}${voice.id.slice(1)}`,
+        voice_name: `Board Buddies ${label(voice.id)}`,
         voice_description: voice.description,
         generated_voice_id: previews[0].generated_voice_id,
       }),
@@ -139,7 +175,10 @@ interface Job {
   voiceId: string;
   file: string;
   text: string;
+  speed?: number;
 }
+
+const speedOf = (id: string) => VOICES.find((v) => v.id === id)?.speed;
 
 async function main() {
   const jobs: Job[] = [];
@@ -147,7 +186,12 @@ async function main() {
     for (const [stem, texts] of Object.entries(groups)) {
       texts.forEach((text, i) => {
         const variant = String(i + 1).padStart(2, "0");
-        jobs.push({ voiceId, text, file: path.join(OUT, voiceId, `${stem}_${variant}.mp3`) });
+        jobs.push({
+          voiceId,
+          text,
+          speed: speedOf(voiceId),
+          file: path.join(OUT, voiceId, `${stem}_${variant}.mp3`),
+        });
       });
     }
   }
@@ -208,7 +252,14 @@ async function main() {
       body: JSON.stringify({
         text: job.text,
         model_id: MODEL,
-        voice_settings: { stability: 0.55, similarity_boost: 0.8, style: 0.25 },
+        voice_settings: {
+          stability: 0.55,
+          similarity_boost: 0.8,
+          style: 0.25,
+          // omitted rather than defaulted, so Coup's existing takes are
+          // reproducible byte-for-byte against the settings they were cut with
+          ...(job.speed ? { speed: job.speed } : {}),
+        },
       }),
     });
     fs.mkdirSync(path.dirname(job.file), { recursive: true });

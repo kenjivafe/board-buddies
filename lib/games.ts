@@ -28,4 +28,12 @@ export const GAMES: Game[] = [
     emblem: "⚜",
     accent: "#df4f3b",
   },
+  {
+    slug: "werewolf",
+    name: "One Night Werewolf",
+    tagline: "One night, one argument, one vote. Your card may not be yours by morning.",
+    players: "3–10 players · Hidden roles",
+    emblem: "🌘",
+    accent: "#6f7fb8",
+  },
 ];

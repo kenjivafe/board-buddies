@@ -3,6 +3,8 @@ import "@fontsource-variable/bricolage-grotesque";
 // wdth.css carries the width axis too — Coup sets condensed heavy caps with it
 import "@fontsource-variable/archivo/wdth.css";
 import "@fontsource-variable/fraunces";
+// wght.css carries the weight axis — Werewolf sets its headings in heavy caps
+import "@fontsource-variable/cinzel/wght.css";
 import "@fontsource-variable/instrument-sans";
 import "./globals.css";
 

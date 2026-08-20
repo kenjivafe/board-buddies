@@ -28,7 +28,7 @@ import {
 import { BED_BAR_SECONDS } from "@/lib/werewolf/ambience";
 import { sleepStem, wakeStem } from "@/lib/werewolf/voice";
 import { Moon, Rule, Waiting } from "./Bits";
-import { CentrePick, Notebook, PickList, Shown } from "./Table";
+import { CentrePick, PickList, Shown } from "./Table";
 import { MuteButton, useNarrator } from "./useNarrator";
 
 type Props = { view: OnuwView; dispatch: React.Dispatch<Action> };
@@ -308,38 +308,6 @@ function DeviceNight({ view, dispatch, called }: Props & { called: NightStep | n
   const step = view.step;
   const me = view.selfId ? playerIn(view, view.selfId) : null;
 
-  /**
-   * What this device just found out, held on screen until it has been read.
-   *
-   * One phone has always had this and a room had nothing: you tapped a card,
-   * the server moved the night on, your step went away with it and the screen
-   * was back to "the village sleeps" before the card you had turned over ever
-   * appeared. The whole reward for waking up went past in a frame.
-   *
-   * Keyed on the step as well as the count, so a stale entry from a role that
-   * turned out to learn nothing cannot pick up somebody else's notes later —
-   * the Insomniac is quite capable of waking the same device twice a night.
-   */
-  const [learned, setLearned] = useState<{ from: number; step: NightStep } | null>(null);
-  const notes = me ? notesFor(view, me.id) : [];
-  const fresh = learned
-    ? notes.slice(learned.from).filter((note) => note.step === learned.step)
-    : [];
-
-  if (fresh.length > 0) {
-    return (
-      <section className="gate">
-        <span className="eyebrow">What you found out</span>
-        <Shown notes={fresh} />
-        <Rule />
-        <button className="btn btn-primary" onClick={() => setLearned(null)}>
-          Read it — back to sleep
-        </button>
-        <p className="hint">Remember it. Nothing writes it down for you but this.</p>
-      </section>
-    );
-  }
-
   if (!step || !me || called !== step) return <Asleep view={view} />;
 
   return (
@@ -351,7 +319,13 @@ function DeviceNight({ view, dispatch, called }: Props & { called: NightStep | n
         step={step}
         actors={[me]}
         narrated={false}
-        onActed={() => setLearned({ from: notes.length, step })}
+        /*
+         * Nothing to do. On one phone this opens a gate, because the device is
+         * about to change hands and what you were shown has to come off the
+         * screen before it does. A room passes nothing, so there is nothing to
+         * dismiss for — see Asleep, which simply keeps it up.
+         */
+        onActed={() => {}}
       />
     </>
   );
@@ -746,7 +720,25 @@ function InsomniacPanel({ dispatch, onActed }: PanelProps) {
 // ---------- everybody else ----------
 
 /** A dark screen. It is deliberately the least informative thing in the app. */
+/**
+ * Your own screen for the rest of the night, with whatever you found out still
+ * on it.
+ *
+ * There was a "read it, back to sleep" gate here for a moment, and it was the
+ * wrong shape twice over. It blocked nothing — the night is paced by the
+ * server and your turn is already over — so the button dismissed a modal that
+ * was holding up nothing at all. And because the day screen replaces the night
+ * whole, a reveal nobody had dismissed could be taken away mid-read when the
+ * argument opened.
+ *
+ * So it is not a gate. A player is woken once a night, which means everything
+ * they ever learn comes from that one step: it goes up when they act and stays
+ * up until morning, at full size, where nothing can cut it off and there is
+ * nothing to tap. The compact notebook takes over on the day screen, which is
+ * where a reference belongs.
+ */
 function Asleep({ view }: { view: OnuwView }) {
+  const found = (view.self?.notes ?? []).filter((n) => n.step !== "deal");
   return (
     <>
       <section className="sleeping">
@@ -756,7 +748,7 @@ function Asleep({ view }: { view: OnuwView }) {
           The village sleeps. Eyes shut — this will wake you if somebody wants you.
         </p>
       </section>
-      <Notebook notes={view.self?.notes ?? []} label="Your notebook" />
+      {found.length > 0 && <Shown notes={found} label="What you found out" />}
     </>
   );
 }

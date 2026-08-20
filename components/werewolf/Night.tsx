@@ -28,7 +28,7 @@ import {
 import { BED_BAR_SECONDS } from "@/lib/werewolf/ambience";
 import { sleepStem, wakeStem } from "@/lib/werewolf/voice";
 import { Moon, Rule, Waiting } from "./Bits";
-import { CentrePick, PickList, Shown } from "./Table";
+import { CentrePick, PickList, Shown, aboutYourOwnCard } from "./Table";
 import { MuteButton, useNarrator } from "./useNarrator";
 
 type Props = { view: OnuwView; dispatch: React.Dispatch<Action> };
@@ -738,7 +738,11 @@ function InsomniacPanel({ dispatch, onActed }: PanelProps) {
  * where a reference belongs.
  */
 function Asleep({ view }: { view: OnuwView }) {
-  const found = (view.self?.notes ?? []).filter((n) => n.step !== "deal");
+  // anything about your own card is drawn by "Your card", which is on this
+  // same screen — the swap was being rendered twice, one above the other
+  const found = (view.self?.notes ?? []).filter(
+    (n) => n.step !== "deal" && !aboutYourOwnCard(n)
+  );
   return (
     <>
       <section className="sleeping">

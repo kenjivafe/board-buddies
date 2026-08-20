@@ -240,6 +240,8 @@ The obvious fix was to copy the gate across, and it was wrong twice over. It blo
 
 So a room keeps the finding on the sleeping screen instead — full size, from the moment you act until morning, with nothing to tap. A player is woken once a night, so everything they ever learn comes from that one step and there is no second reveal to make room for. The compact notebook takes over on the day screen, which is where a reference belongs.
 
+**A finding is filed by whose card it is about.** The Robber, the Drunk and the Insomniac act on the card in front of *them*, so what they are told is a statement about the card they are holding and belongs under "Your card" — which is on the same screen, and was drawing the Robber's swap a second time directly under the first. Everything else a player learns is about somebody else's card and stays in what they found out. `aboutYourOwnCard` is the one place that decides. The Drunk is the case that shows why it is worth doing properly: trading blind produces a sentence and no card at all, so it is not a finding, and it reads as what it is — a warning printed over the card you can no longer trust.
+
 **The night's irreversible picks are all pick-then-confirm now.** The Seer and the Troublemaker always were; the Robber, the Drunk and the Witch's plant committed on the first tap, which put the least reversible decision in the game one stray thumb away.
 
 The notebook and the reveal share one `NoteCards` so they cannot drift, which they did once: the reveal drew the whole middle and going back to the notebook to check turned it into a single thumbnail again, at exactly the moment you want the other two. The log gets thumbnails, the reveal gets the width of the screen, and both get three cards.

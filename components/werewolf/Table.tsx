@@ -314,44 +314,54 @@ export function Shown({ notes, label }: { notes: Note[]; label?: string }) {
  * it — rather than as a thumbnail in a strip. It is the single most important
  * thing on the screen in a room, and it was the smallest.
  */
+/**
+ * Three roles act on the card in front of *them* rather than on somebody
+ * else's: the Robber takes one, the Drunk trades one away blind, and the
+ * Insomniac checks what hers has become. Whatever they are told is a statement
+ * about the card they are holding, so it belongs in "Your card" — and nowhere
+ * else, or the same swap gets drawn twice on one screen.
+ *
+ * Everything else a player learns — the pack, the Masons, the Seer's look, the
+ * Witch's meddling — is about other people's cards, and stays in what they
+ * found out.
+ */
+const OWN_CARD_STEPS = ["robber", "drunk", "insomniac"];
+export const aboutYourOwnCard = (note: Note) => OWN_CARD_STEPS.includes(note.step);
+
 export function YouAre({ view }: { view: OnuwView }) {
   const self = view.self;
   if (!self) return null;
 
   /*
-   * If you have found out that your card is no longer yours, this says so.
-   *
-   * Only the Robber and the Insomniac ever learn it — the Drunk swaps blind
-   * and the Witch and the Troublemaker move other people's cards without
-   * telling them — so this is not a general "what am I holding" display. It
-   * shows what you *know*, which is the only thing the game is willing to say.
+   * What you have been told about your own card, if anything. It says what you
+   * *know*, which is the only thing the game is willing to say: the Drunk gets
+   * a sentence and no card at all, because trading blind is precisely not
+   * finding anything out.
    */
-  const swap = [...self.notes].reverse().find((n) => n.cards.some((c) => c.was));
-  const was = swap?.cards.find((c) => c.was)?.role;
-  const now = swap?.cards.find((c) => !c.was)?.role;
+  const mine = [...self.notes].reverse().find(aboutYourOwnCard);
+  const was = mine?.cards.find((c) => c.was)?.role;
+  const now = mine?.cards.find((c) => !c.was)?.role;
+  const holding = now ?? self.dealt;
 
   return (
     <section className="you-are" aria-label="The card you are holding">
       <Rule>Your card</Rule>
+      {mine && <p className="told-text">{mine.text}</p>}
       {was && now ? (
-        <>
-          <Swap was={was} now={now} />
-          <RoleBrief role={now} />
-          <p className="hint">
-            Somebody took yours. You act on what you were dealt and win with what you hold.
-          </p>
-        </>
+        <Swap was={was} now={now} />
       ) : (
-        <>
-          <div className="you-are-card">
-            <CardFace role={self.dealt} size="md" />
-          </div>
-          <RoleBrief role={self.dealt} />
-          <p className="hint">
-            What you hold at the end is what you win with, and it may not be this.
-          </p>
-        </>
+        <div className="you-are-card">
+          <CardFace role={holding} size="md" />
+        </div>
       )}
+      <RoleBrief role={holding} />
+      <p className="hint">
+        {was
+          ? "Somebody took yours. You act on what you were dealt and win with what you hold."
+          : mine && !now
+            ? "You act on the card you were dealt, whatever it has since become."
+            : "What you hold at the end is what you win with, and it may not be this."}
+      </p>
     </section>
   );
 }

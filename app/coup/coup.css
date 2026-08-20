@@ -371,6 +371,27 @@
   object-fit: cover;
 }
 
+/* The same slant the back is printed with, laid over the faces. Barely there
+   on purpose: it is the tooth of the card stock catching the light, not a
+   pattern competing with the illustration under it. */
+.coup-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    108deg,
+    rgba(236, 216, 192, 0.055) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+/* the back draws its own, at its own scale, inside the artwork */
+.coup-card.back::after {
+  content: none;
+}
+
 button.card-slot:active .coup-card {
   transform: scale(0.98);
 }
@@ -386,6 +407,7 @@ button.card-slot:active .coup-card {
 /* chip sits over the illustration, never over the printed name or ability */
 .card-tag {
   position: absolute;
+  z-index: 2;
   top: 7px;
   left: 50%;
   transform: translateX(-50%);
@@ -405,6 +427,7 @@ button.card-slot:active .coup-card {
 
 .spent-band {
   position: absolute;
+  z-index: 2;
   inset: 0;
   display: grid;
   place-items: center;
@@ -430,22 +453,15 @@ button.card-slot:active .coup-card {
 
 /* the back: same cream stock, the deck's hatching where the art would be */
 .coup-card.back {
-  display: grid;
-  padding: 2.6%;
+  display: block;
+  background: var(--bone);
 }
 
-.back-panel {
-  display: grid;
-  place-items: center;
-  border-radius: 6px;
-  background:
-    repeating-linear-gradient(108deg, rgba(236, 216, 192, 0.08) 0 2px, transparent 2px 5.5px),
-    #1f1c20;
-}
-
-.back-panel .seal {
-  font-size: 14px;
-  color: rgba(236, 216, 192, 0.26);
+/* the drawing fills the card; it carries its own border and stock */
+.back-art {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* ---------- hold to peek ---------- */

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import CardBackArt from "./CardBackArt";
 import { CHARACTER_INFO } from "@/lib/coup/deck";
 import type { Character } from "@/lib/coup/types";
 import type { CardView } from "@/lib/coup/view";
@@ -83,9 +84,7 @@ export function CardBack() {
   return (
     <div className="card-slot" aria-hidden>
       <span className="coup-card back">
-        <span className="back-panel">
-          <span className="seal">◆</span>
-        </span>
+        <CardBackArt />
       </span>
     </div>
   );

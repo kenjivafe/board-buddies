@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { GameId, RoomView } from "@/lib/room/types";
+import { ExitDoor } from "@/components/Icons";
 import Lobby from "./Lobby";
 import { joinRoom, useRoom } from "./useRoom";
 
@@ -15,6 +16,7 @@ export default function RoomShell({
   game,
   minSeats,
   lobbyExtra,
+  barExtra,
   startOptions,
   children,
 }: {
@@ -24,6 +26,12 @@ export default function RoomShell({
   /** host-only pre-game controls. Given the room, because most such controls
       (Werewolf's lineup, say) have to size themselves to who has turned up. */
   lobbyExtra?: (room: RoomView) => React.ReactNode;
+  /**
+   * Game-specific chrome for the bar, sitting to the left of Leave. Werewolf
+   * puts its narrator there — the mute belongs beside the way out rather than
+   * in a second sticky bar of its own.
+   */
+  barExtra?: (room: RoomView, dispatch: (action: unknown) => void) => React.ReactNode;
   /** read when the host actually presses start, so it can follow those controls */
   startOptions?: (room: RoomView) => Record<string, unknown>;
   children: (room: RoomView, dispatch: (action: unknown) => void) => React.ReactNode;
@@ -194,7 +202,13 @@ export default function RoomShell({
 
   return (
     <main className="shell">
-      <RoomBar room={room} status={status} error={error} onLeave={() => setLeaving(true)} />
+      <RoomBar
+        room={room}
+        status={status}
+        error={error}
+        onLeave={() => setLeaving(true)}
+        extra={barExtra?.(room, dispatch)}
+      />
       {children(room, dispatch)}
     </main>
   );
@@ -205,11 +219,14 @@ function RoomBar({
   status,
   error,
   onLeave,
+  extra,
 }: {
   room: RoomView;
   status: string;
   error: string | null;
   onLeave: () => void;
+  /** whatever the game wants beside the way out */
+  extra?: React.ReactNode;
 }) {
   return (
     <div className="room-bar">
@@ -220,7 +237,9 @@ function RoomBar({
       <span className="room-bar-you">
         You are {room.seats.find((s) => s.id === room.selfId)?.name}
       </span>
-      <button className="room-bar-leave" onClick={onLeave}>
+      {extra}
+      <button className="bar-btn" onClick={onLeave}>
+        <ExitDoor />
         Leave
       </button>
       {error && <span className="room-bar-error">{error}</span>}

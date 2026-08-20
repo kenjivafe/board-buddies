@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Action } from "@/lib/werewolf/reducer";
+import { ExitDoor } from "@/components/Icons";
 import { MuteButton } from "./useNarrator";
 
 /**
@@ -21,6 +22,7 @@ export default function GameBar({ dispatch }: { dispatch: React.Dispatch<Action>
       <div className="game-bar">
         <MuteButton inBar />
         <button className="bar-btn" onClick={() => setLeaving(true)}>
+          <ExitDoor />
           Leave
         </button>
       </div>

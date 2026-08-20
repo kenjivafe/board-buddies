@@ -46,6 +46,13 @@ export default function RoomGame({ code }: { code: string }) {
   const [dawned, setDawned] = useState(false);
 
   return (
+    /*
+     * Above the shell rather than inside it: the mute lives in the room bar
+     * now, beside the way out, so the bar and the game have to be looking at
+     * the same narrator. Mounted through the lobby too, where it does nothing
+     * — no scene is set until the night actually falls.
+     */
+    <NarratorProvider>
     <RoomShell
       code={code}
       game="werewolf"
@@ -66,6 +73,21 @@ export default function RoomGame({ code }: { code: string }) {
         lineup: lineup ?? suggestLineup(room.seats.length),
         discussionSeconds: seconds,
       })}
+      /* the script is read from the bar, so the mute sits where the way out is */
+      barExtra={(room, dispatch) => {
+        const view = room.state as OnuwView;
+        return (
+          <RoomNarrator
+            view={view}
+            dispatch={dispatch as React.Dispatch<Action>}
+            paces={room.isHost}
+            onCalled={setCalled}
+            dawning={(view.phase === "day" || view.phase === "vote") && !dawned}
+            onDawned={() => setDawned(true)}
+            onNight={() => setDawned(false)}
+          />
+        );
+      }}
     >
       {(room, dispatch) => {
         const view = room.state as OnuwView;
@@ -73,20 +95,8 @@ export default function RoomGame({ code }: { code: string }) {
         const dawning = (view.phase === "day" || view.phase === "vote") && !dawned;
 
         return (
-          <NarratorProvider>
+          <>
             <Sky time={skyFor(view)} />
-            {/* every device reads the script; only the host's paces the night */}
-            <div className="game-bar">
-              <RoomNarrator
-                view={view}
-                dispatch={send}
-                paces={room.isHost}
-                onCalled={setCalled}
-                dawning={dawning}
-                onDawned={() => setDawned(true)}
-                onNight={() => setDawned(false)}
-              />
-            </div>
             {/*
               Listed rather than defaulted. `day` used to be the else-branch,
               so a room that ended up anywhere unexpected — a deal that had not
@@ -110,9 +120,10 @@ export default function RoomGame({ code }: { code: string }) {
                 <YouAre view={view} />
               </>
             )}
-          </NarratorProvider>
+          </>
         );
       }}
     </RoomShell>
+    </NarratorProvider>
   );
 }

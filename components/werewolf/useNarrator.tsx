@@ -20,6 +20,7 @@ import {
   stingLayers,
   takeOf,
 } from "@/lib/werewolf/ambience";
+import { SpeakerOff, SpeakerOn } from "@/components/Icons";
 import { NightBed } from "@/lib/werewolf/bed";
 import { NIGHT_ORDER } from "@/lib/werewolf/roles";
 import type { NightStep } from "@/lib/werewolf/types";
@@ -373,13 +374,13 @@ export function MuteButton({ inBar }: { inBar?: boolean }) {
   if (!present) return null;
   return (
     <button
-      className={inBar ? "bar-btn" : "mute-btn"}
+      className={inBar ? "bar-btn icon" : "mute-btn"}
       onClick={toggle}
       aria-pressed={muted}
       aria-label={muted ? "Turn the narrator on" : "Turn the narrator off"}
       title={muted ? "Narrator off" : "Narrator on"}
     >
-      <span aria-hidden>{muted ? "🔇" : "🔊"}</span>
+      {muted ? <SpeakerOff /> : <SpeakerOn />}
     </button>
   );
 }

@@ -3,7 +3,7 @@
 import { ROLE_INFO } from "@/lib/werewolf/roles";
 import type { Note } from "@/lib/werewolf/types";
 import type { OnuwView, PlayerView } from "@/lib/werewolf/view";
-import { CardBack, CardFace, CardSlot, RoleBrief, Rule, sizeForCount, tint } from "./Bits";
+import { CardBack, CardFace, CardSlot, Person, RoleBrief, Rule, sizeForCount, tint } from "./Bits";
 
 /**
  * The people a night role can choose between, as the cards in front of them.
@@ -128,17 +128,28 @@ export function CentrePick({
   );
 }
 
-/** Who is at the table. Nothing about anybody's card, because nobody knows. */
+/**
+ * Who is at the table. Nothing about anybody's card, because nobody knows.
+ *
+ * A face and a name rather than a row each. The roster carries one fact per
+ * player and a stacked list of full-width plates spent a screen's worth of
+ * height saying it — on ten players it pushed everything that matters off the
+ * bottom. Side by side, it is a table you can take in at a glance, which is
+ * what a roster is for.
+ */
 export function Board({ view, label = "At the table" }: { view: OnuwView; label?: string }) {
   return (
     <section className="ww-section" aria-label={label}>
       <span className="eyebrow">
         {label} · {view.players.length}
       </span>
-      <ul className="board">
+      <ul className="faces">
         {view.players.map((p) => (
-          <li className={`board-row${p.id === view.selfId ? " you" : ""}`} key={p.id}>
-            <span className="board-name">{p.name}</span>
+          <li className={`face${p.id === view.selfId ? " you" : ""}`} key={p.id}>
+            <span className="face-ring">
+              <Person />
+            </span>
+            <span className="face-name">{p.name}</span>
           </li>
         ))}
       </ul>
@@ -189,28 +200,59 @@ export function Notebook({
  * into a notebook entry and shrunk to a thumbnail — the text sits above it and
  * the card gets the width of the screen.
  */
+const ORDINAL = ["First", "Second", "Third"];
+
+/**
+ * The three in the middle, with the ones nobody turned over still face down.
+ *
+ * A single thumbnail said "you saw a card". Which of the three you saw is a
+ * real part of what you know — the Seer who took the first and the second can
+ * tell the table that the third is still unaccounted for — and drawing the
+ * whole middle keeps that on screen instead of only in the caption.
+ */
+function Middle({ cards }: { cards: Note["cards"] }) {
+  return (
+    // `trio` rather than the plain row: it sizes three cards to the width of
+    // the screen instead of leaving them as thumbnails, and being shown a card
+    // is the whole reward for waking up
+    <div className="card-row trio">
+      {ORDINAL.map((name, slot) => {
+        const looked = cards.find((c) => c.centre === slot);
+        return <CardSlot key={slot} role={looked?.role ?? null} caption={name} size="md" />;
+      })}
+    </div>
+  );
+}
+
 export function Shown({ notes, label }: { notes: Note[]; label?: string }) {
   if (notes.length === 0) return null;
   return (
     <section aria-label={label ?? "What you were shown"}>
       {label && <span className="eyebrow">{label}</span>}
-      {notes.map((n, i) => (
-        <div className="told" key={i}>
-          <p className="told-text">{n.text}</p>
-          {n.cards.length > 0 && (
-            <div className="card-row">
-              {n.cards.map((c, j) => (
-                <CardSlot
-                  key={j}
-                  role={c.role}
-                  caption={c.label}
-                  size={sizeForCount(n.cards.length)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+      {notes.map((n, i) => {
+        const middle = n.cards.some((c) => c.centre !== undefined);
+        return (
+          <div className="told" key={i}>
+            <p className="told-text">{n.text}</p>
+            {middle ? (
+              <Middle cards={n.cards} />
+            ) : (
+              n.cards.length > 0 && (
+                <div className="card-row">
+                  {n.cards.map((c, j) => (
+                    <CardSlot
+                      key={j}
+                      role={c.role}
+                      caption={c.label}
+                      size={sizeForCount(n.cards.length)}
+                    />
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        );
+      })}
     </section>
   );
 }

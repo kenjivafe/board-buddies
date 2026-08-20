@@ -228,6 +228,10 @@ So the night runs as narration, in the rulebook's own words. Everyone shuts thei
 
 The night owes two lines on its way out, so the closing beat runs *after* the phase has already turned to day: the last role is sent to bed and then everybody is woken. Without it the final role acted and the screen cut straight to daylight, which meant the Insomniac never saw the card she had just checked.
 
+**The roster is faces, not rows.** One fact per player — that they are here — does not need a full-width plate each, and ten of them stacked pushed everything that matters off the bottom of the screen. A circle, an anonymous figure and a name underneath, side by side and wrapping.
+
+**Being shown a centre card draws all three of them.** The two nobody turned over stay face down, which is the point: *which* of the three you saw is part of what you know, and a Seer who took the first and the third can tell the table the second is still unaccounted for. `Note.cards` carries an optional `centre` index for it. The face-down slots hold no card data at all, so there is nothing there to leak — the render test counts `<img>` elements to keep it that way.
+
 The only screens that name anybody are the opening deal (which leaks nothing — everyone is passed their own card in seat order) and the day, when it's all public anyway.
 
 #### The voice

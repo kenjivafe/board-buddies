@@ -324,7 +324,6 @@
 
 .player-row,
 .lineup-row,
-.board-row,
 .note,
 .reading,
 .tally-row,
@@ -896,38 +895,57 @@
 
 /* ---------- the table ---------- */
 
-.board {
+/* Faces, side by side. One fact per player does not need a plate each, and a
+   ten-seat stack of them pushed the rest of the screen out of sight. */
+.faces {
   list-style: none;
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-top: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 10px;
+  margin-top: 12px;
 }
 
-.board-row {
+.face {
+  width: 66px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  font-size: 14px;
+  gap: 6px;
 }
 
-.board-row.you {
+.face-ring {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  background:
+    linear-gradient(180deg, rgba(201, 162, 39, 0.05), transparent 70%),
+    var(--surface);
+  border: 1px solid var(--line);
+}
+
+.face.you .face-ring {
   border-color: var(--gold-deep);
+  color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.08);
 }
 
-.board-name {
-  flex: 1;
-  min-width: 0;
+.face-name {
+  max-width: 100%;
+  font-size: 11.5px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.board-note {
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 0.02em;
+.face.you .face-name {
+  color: var(--gold);
 }
 
 /* ---------- the notebook ---------- */
@@ -1187,6 +1205,20 @@
 
 .beat .btn {
   min-width: 240px;
+}
+
+/* The one call to action on the argument screen, in the middle of it rather
+   than tucked against the left edge of a column of left-aligned prose. */
+.day-call {
+  display: block;
+  margin: 16px auto 0;
+  min-width: 240px;
+}
+
+.day-wait {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
 }
 
 /* The controls that have to be reachable whatever screen the night is on: the

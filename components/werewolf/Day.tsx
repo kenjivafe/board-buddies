@@ -86,15 +86,11 @@ function Argument({ view, dispatch, canControl }: Props) {
       {view.dayEndsAt !== null && <Clock endsAt={view.dayEndsAt} />}
 
       {canControl ? (
-        <button
-          className="btn btn-primary"
-          style={{ marginTop: 14 }}
-          onClick={() => dispatch({ type: "OPEN_VOTE" })}
-        >
+        <button className="btn btn-primary day-call" onClick={() => dispatch({ type: "OPEN_VOTE" })}>
           Three, two, one — point
         </button>
       ) : (
-        <div style={{ marginTop: 14 }}>
+        <div className="day-wait">
           <Waiting text="Keep arguing." on="The host calls the vote when the table is ready." />
         </div>
       )}

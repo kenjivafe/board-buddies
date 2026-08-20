@@ -496,6 +496,7 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
             {
               role: state.slots[action.centreSlot],
               label: `${centreName(state, action.centreSlot)} centre card`,
+              centre: action.centreSlot - state.players.length,
             },
           ],
         });
@@ -533,6 +534,7 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
           cards: picked.map((s) => ({
             role: state.slots[s],
             label: `${centreName(state, s)} centre card`,
+            centre: s - state.players.length,
           })),
         });
       } else {
@@ -587,7 +589,13 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
         {
           step: "witch",
           text: `You turned over ${centreName(state, action.centreSlot)} centre card: the ${ROLE_INFO[seen].name}. Now it has to go on somebody.`,
-          cards: [{ role: seen, label: `${centreName(state, action.centreSlot)} centre card` }],
+          cards: [
+            {
+              role: seen,
+              label: `${centreName(state, action.centreSlot)} centre card`,
+              centre: action.centreSlot - state.players.length,
+            },
+          ],
         }
       );
     }

@@ -59,8 +59,15 @@ export interface Note {
   /** the step that produced it, for ordering */
   step: NightStep | "deal" | "dawn";
   text: string;
-  /** cards that were genuinely turned face up for this player */
-  cards: { role: Role; label: string }[];
+  /**
+   * Cards that were genuinely turned face up for this player.
+   *
+   * `centre` is 0, 1 or 2 when the card is one of the three in the middle,
+   * which lets the screen draw all three and leave the ones nobody looked at
+   * face down. Seeing the second of three is a different piece of knowledge
+   * from seeing "a card", and the old single thumbnail lost that.
+   */
+  cards: { role: Role; label: string; centre?: number }[];
 }
 
 export type LogKind = "night" | "vote" | "death" | "dawn";

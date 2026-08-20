@@ -23,6 +23,25 @@ export const TEAM_NAME: Record<string, string> = {
 };
 
 /**
+ * A body in a chair. Deliberately anonymous — a room has no avatars and the
+ * point of the roster is who is *here*, not who anybody is.
+ */
+export function Person({ size = 20 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden focusable="false">
+      <circle cx="12" cy="8" r="3.6" fill="currentColor" />
+      <path
+        d="M4.6 20.2c0-4.1 3.3-6.6 7.4-6.6s7.4 2.5 7.4 6.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
  * The one light in the game. `phase` slides the bite out of the disc: 0 is
  * full, 1 is a fingernail.
  */

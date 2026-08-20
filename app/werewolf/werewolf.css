@@ -717,9 +717,13 @@
   margin-top: 12px;
 }
 
-/* an odd one out spans the row rather than leaving a gap beside it */
+/* An odd one out is centred under the pair above it, at the same width. It
+   used to stretch across both columns, which made the last name on the ballot
+   twice the size of everybody else's and read as if it mattered more. */
 .pick-list > li:last-child:nth-child(odd) {
   grid-column: 1 / -1;
+  width: calc((100% - 6px) / 2);
+  justify-self: center;
 }
 
 .pick {

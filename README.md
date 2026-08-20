@@ -232,6 +232,8 @@ The night owes two lines on its way out, so the closing beat runs *after* the ph
 
 **Being shown a centre card draws all three of them.** The two nobody turned over stay face down, which is the point: *which* of the three you saw is part of what you know, and a Seer who took the first and the third can tell the table the second is still unaccounted for. `Note.cards` carries an optional `centre` index for it. The face-down slots hold no card data at all, so there is nothing there to leak — the render test counts `<img>` elements to keep it that way.
 
+The notebook and the reveal share one `NoteCards` so they cannot drift, which they did once: the reveal drew the whole middle and going back to the notebook to check turned it into a single thumbnail again, at exactly the moment you want the other two. The log gets thumbnails, the reveal gets the width of the screen, and both get three cards.
+
 The only screens that name anybody are the opening deal (which leaks nothing — everyone is passed their own card in seat order) and the day, when it's all public anyway.
 
 #### The voice

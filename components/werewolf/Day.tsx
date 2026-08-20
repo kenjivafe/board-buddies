@@ -155,11 +155,10 @@ function Ballot({ view, dispatch }: Omit<Props, "canControl">) {
 
   return (
     <section className="ww-section">
+      {/* No preamble. By the time the ballot is open the table has argued for
+          five minutes and knows perfectly well what pointing does; the rules
+          of it were only ever in the way of the one thing to do here. */}
       <Rule>Point at somebody</Rule>
-      <p className="ww-sub">
-        Sealed until the last finger goes up, then read out in full — everybody sees who pointed
-        at whom. You can&apos;t point at yourself, and you can&apos;t abstain.
-      </p>
       <PickNames
         people={view.players.filter((p) => p.id !== me)}
         selected={[]}

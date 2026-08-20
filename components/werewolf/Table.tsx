@@ -179,13 +179,7 @@ export function Notebook({
         {learned.map((n, i) => (
           <li className={`note${i >= freshFrom ? " fresh" : ""}`} key={i}>
             <p className="note-text">{n.text}</p>
-            {n.cards.length > 0 && (
-              <div className="card-row">
-                {n.cards.map((c, j) => (
-                  <CardSlot key={j} role={c.role} caption={c.label} size="sm" />
-                ))}
-              </div>
-            )}
+            <NoteCards cards={n.cards} compact />
           </li>
         ))}
       </ul>
@@ -203,23 +197,55 @@ export function Notebook({
 const ORDINAL = ["First", "Second", "Third"];
 
 /**
- * The three in the middle, with the ones nobody turned over still face down.
+ * The cards attached to one note.
  *
- * A single thumbnail said "you saw a card". Which of the three you saw is a
- * real part of what you know — the Seer who took the first and the second can
- * tell the table that the third is still unaccounted for — and drawing the
- * whole middle keeps that on screen instead of only in the caption.
+ * Shared by the notebook and the big reveal so they cannot drift: a centre
+ * look draws the whole middle in both, and it was only ever the reveal that
+ * did — going back to the notebook to check turned three cards back into one
+ * thumbnail, which is exactly when you want the other two.
+ *
+ * `compact` is the notebook, which is a log and wants thumbnails.
  */
-function Middle({ cards }: { cards: Note["cards"] }) {
+function NoteCards({ cards, compact = false }: { cards: Note["cards"]; compact?: boolean }) {
+  if (cards.length === 0) return null;
+
+  /*
+   * The three in the middle, with the ones nobody turned over face down.
+   * *Which* of the three you saw is a real part of what you know — a Seer who
+   * took the first and the second can tell the table that the third is still
+   * unaccounted for — and one thumbnail threw that away.
+   */
+  if (cards.some((c) => c.centre !== undefined)) {
+    return (
+      // `trio` sizes three cards to the width of the screen rather than
+      // leaving them as thumbnails; being shown a card is the whole reward
+      // for waking up, so the reveal gets that and the log does not
+      <div className={compact ? "card-row" : "card-row trio"}>
+        {ORDINAL.map((name, slot) => {
+          const looked = cards.find((c) => c.centre === slot);
+          return (
+            <CardSlot
+              key={slot}
+              role={looked?.role ?? null}
+              caption={name}
+              size={compact ? "sm" : "md"}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
-    // `trio` rather than the plain row: it sizes three cards to the width of
-    // the screen instead of leaving them as thumbnails, and being shown a card
-    // is the whole reward for waking up
-    <div className="card-row trio">
-      {ORDINAL.map((name, slot) => {
-        const looked = cards.find((c) => c.centre === slot);
-        return <CardSlot key={slot} role={looked?.role ?? null} caption={name} size="md" />;
-      })}
+    <div className="card-row">
+      {cards.map((c, j) => (
+        <CardSlot
+          key={j}
+          role={c.role}
+          caption={c.label}
+          size={compact ? "sm" : sizeForCount(cards.length)}
+        />
+      ))}
     </div>
   );
 }
@@ -229,30 +255,12 @@ export function Shown({ notes, label }: { notes: Note[]; label?: string }) {
   return (
     <section aria-label={label ?? "What you were shown"}>
       {label && <span className="eyebrow">{label}</span>}
-      {notes.map((n, i) => {
-        const middle = n.cards.some((c) => c.centre !== undefined);
-        return (
-          <div className="told" key={i}>
-            <p className="told-text">{n.text}</p>
-            {middle ? (
-              <Middle cards={n.cards} />
-            ) : (
-              n.cards.length > 0 && (
-                <div className="card-row">
-                  {n.cards.map((c, j) => (
-                    <CardSlot
-                      key={j}
-                      role={c.role}
-                      caption={c.label}
-                      size={sizeForCount(n.cards.length)}
-                    />
-                  ))}
-                </div>
-              )
-            )}
-          </div>
-        );
-      })}
+      {notes.map((n, i) => (
+        <div className="told" key={i}>
+          <p className="told-text">{n.text}</p>
+          <NoteCards cards={n.cards} />
+        </div>
+      ))}
     </section>
   );
 }

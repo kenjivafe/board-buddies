@@ -51,7 +51,14 @@ export default function Day({ view, dispatch, canControl }: Props) {
   );
 }
 
-function Clock({ endsAt }: { endsAt: number }) {
+/**
+ * How long is left, and — for whoever can call time — the button that ends it.
+ *
+ * The two belong in one container rather than stacked: the clock is the reason
+ * you would press the button, and reading a countdown and then hunting for the
+ * control it refers to is two beats where there should be one.
+ */
+function Clock({ endsAt, action }: { endsAt: number; action?: React.ReactNode }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
@@ -60,14 +67,24 @@ function Clock({ endsAt }: { endsAt: number }) {
   const left = endsAt - now;
 
   return (
-    <div className={`clock${left <= 0 ? " out" : ""}`}>
-      <span className="clock-time">{mmss(left)}</span>
-      <span className="eyebrow">{left <= 0 ? "Time's up" : "Left to argue"}</span>
+    <div className={`clock${left <= 0 ? " out" : ""}${action ? " with-action" : ""}`}>
+      <span className="clock-face">
+        <span className="clock-time">{mmss(left)}</span>
+        <span className="eyebrow">{left <= 0 ? "Time's up" : "Left to argue"}</span>
+      </span>
+      {action}
     </div>
   );
 }
 
 function Argument({ view, dispatch, canControl }: Props) {
+  // the one control on this screen, wherever it ends up sitting
+  const call = canControl ? (
+    <button className="btn btn-primary day-call" onClick={() => dispatch({ type: "OPEN_VOTE" })}>
+      Start voting
+    </button>
+  ) : null;
+
   // "Everyone, wake up" is said by the night's closing beat, on its way out —
   // the line is only printed here, as the header of the day it opened
   return (
@@ -84,27 +101,19 @@ function Argument({ view, dispatch, canControl }: Props) {
       </p>
 
       {/*
-        The clock and the reason there is no button beside it, rather than
-        stacked. They are one thought — how long is left, and what to do while
-        it runs — and as two boxed panels in a column they pushed the roster
-        and the notebook off the bottom of the screen between them.
+        One row: how long is left, and what to do about it. The clock and the
+        instruction were two boxed panels stacked in a column, which pushed the
+        roster and the notebook off the bottom of the screen between them — and
+        the host's button was a third.
 
-        The host is the exception and keeps the button on its own line: it is
-        the only thing on this screen anybody presses, and pairing it with a
-        readout would demote it.
+        The button goes inside the clock rather than beside it. Beside it, as
+        an equal half of a two-column row, it would have read as a second
+        readout; inside it, it is the one thing in the bar you can press.
       */}
-      {(view.dayEndsAt !== null || !canControl) && (
-        <div className="day-status">
-          {view.dayEndsAt !== null && <Clock endsAt={view.dayEndsAt} />}
-          {!canControl && <Waiting text="Keep arguing." on="The host calls the vote." />}
-        </div>
-      )}
-
-      {canControl && (
-        <button className="btn btn-primary day-call" onClick={() => dispatch({ type: "OPEN_VOTE" })}>
-          Three, two, one — point
-        </button>
-      )}
+      <div className="day-status">
+        {view.dayEndsAt !== null ? <Clock endsAt={view.dayEndsAt} action={call} /> : call}
+        {!canControl && <Waiting text="Keep arguing." on="The host calls the vote." />}
+      </div>
     </section>
   );
 }

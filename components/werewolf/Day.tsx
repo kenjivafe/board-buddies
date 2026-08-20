@@ -83,16 +83,27 @@ function Argument({ view, dispatch, canControl }: Props) {
         least three cards nobody has ever seen are sitting in the middle.
       </p>
 
-      {view.dayEndsAt !== null && <Clock endsAt={view.dayEndsAt} />}
+      {/*
+        The clock and the reason there is no button beside it, rather than
+        stacked. They are one thought — how long is left, and what to do while
+        it runs — and as two boxed panels in a column they pushed the roster
+        and the notebook off the bottom of the screen between them.
 
-      {canControl ? (
+        The host is the exception and keeps the button on its own line: it is
+        the only thing on this screen anybody presses, and pairing it with a
+        readout would demote it.
+      */}
+      {(view.dayEndsAt !== null || !canControl) && (
+        <div className="day-status">
+          {view.dayEndsAt !== null && <Clock endsAt={view.dayEndsAt} />}
+          {!canControl && <Waiting text="Keep arguing." on="The host calls the vote." />}
+        </div>
+      )}
+
+      {canControl && (
         <button className="btn btn-primary day-call" onClick={() => dispatch({ type: "OPEN_VOTE" })}>
           Three, two, one — point
         </button>
-      ) : (
-        <div className="day-wait">
-          <Waiting text="Keep arguing." on="The host calls the vote when the table is ready." />
-        </div>
       )}
     </section>
   );

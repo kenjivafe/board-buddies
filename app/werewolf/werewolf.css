@@ -1239,10 +1239,32 @@
   min-width: 240px;
 }
 
-.day-wait {
-  margin-top: 14px;
+/* The clock and the standing instruction, side by side. `wrap` with a basis
+   rather than a media query, so the two of them stack by themselves on a
+   screen too narrow to read them across. */
+.day-status {
   display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
   justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.day-status > * {
+  flex: 1 1 148px;
+  margin-top: 0;
+  padding: 14px 12px;
+}
+
+/* it no longer has the width to be the biggest thing on the page */
+.day-status .clock-time {
+  font-size: clamp(28px, 9vw, 40px);
+}
+
+.day-status .waiting {
+  justify-content: center;
+  gap: 8px;
 }
 
 /* The controls that have to be reachable whatever screen the night is on: the

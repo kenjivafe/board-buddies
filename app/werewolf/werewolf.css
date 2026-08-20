@@ -1185,29 +1185,6 @@
   animation: called 420ms 60ms ease-out both;
 }
 
-.beat-count {
-  display: grid;
-  place-items: center;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  border: 1px solid var(--gold-deep);
-  font-family: var(--display);
-  font-size: 25px;
-  font-variant-numeric: tabular-nums;
-  color: var(--gold);
-  animation: tick 1s linear infinite;
-}
-
-@keyframes tick {
-  from {
-    border-color: var(--gold);
-  }
-  to {
-    border-color: rgba(143, 111, 28, 0.35);
-  }
-}
-
 .beat .btn {
   min-width: 240px;
 }
@@ -1515,7 +1492,6 @@
   .beat .moon,
   .beat-call,
   .beat-instruction,
-  .beat-count,
   .pick-card,
   .pick-card .card-back,
   .lineup-row,

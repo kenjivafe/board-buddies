@@ -187,33 +187,18 @@ function Beat({
    * bed, so it is the one that holds while the wood comes up underneath.
    */
   const lead = closing === null && !dawn;
+
   /*
-   * No hold before the count on one phone, unlike a room. The pause after
-   * somebody acts is already there and is not the app's to give: the role that
-   * just went reads what it was shown and taps through, so by the time this
-   * beat exists the table has had its moment. Adding another on top only made
-   * the night sit there.
-   */
-  const [left, setLeft] = useState(lead ? LEAD_IN_SECONDS + BEAT_SECONDS : BEAT_SECONDS);
-
-  useEffect(() => {
-    if (left <= 0) return;
-    const t = setTimeout(() => setLeft((n) => n - 1), 1000);
-    return () => clearTimeout(t);
-  }, [left]);
-
-  // the script, in two halves: one role is sent to bed as the dark falls, and
-  // the next is called a beat later
-  const said = left <= BEAT_SECONDS;
-  /**
-   * Whether the call has actually gone out.
+   * There is no countdown here, and there is no clock here.
    *
-   * Driven by the script rather than by the countdown, because the call is held
-   * to the bed's next bar line and so does not land on a whole second. The
-   * counter is the table's cue to settle; this is the moment the role is named,
-   * and the screen has to turn on the second one or the words and the sound
-   * come apart.
+   * There used to be one, ticking whole seconds, and it was a second opinion
+   * about when things happen. Every change to the script — the beat, the wait
+   * for a bar line, the length of a line — moved the audio and left the number
+   * describing the old timing, and it was wrong again every time. The queue
+   * already knows when each thing starts; these two say only *whether* it has,
+   * and the audio sets them as it goes.
    */
+  const [spoke, setSpoke] = useState(false);
   const [ready, setReady] = useState(false);
 
   /**
@@ -239,11 +224,14 @@ function Beat({
    * the move-along waits behind the line instead of racing it.
    */
   useEffect(() => {
-    if (!said || read.current) return;
+    if (read.current) return;
     read.current = true;
     enqueue([
-      { line: closing ? sleepStem(closing) : "open" },
-      { pause: closing || lead ? callLeadMs(BED_BAR_SECONDS) : 0 },
+      // the first beat of the night is the only one with nothing to send to
+      // bed, so it is the one that holds while the wood comes up underneath
+      ...(lead ? [{ pause: LEAD_IN_SECONDS * 1000 }] : []),
+      { line: closing ? sleepStem(closing) : "open", onStart: () => setSpoke(true) },
+      { pause: callLeadMs(BED_BAR_SECONDS) },
       dawn
         ? { line: "dawn", onStart: () => setReady(true) }
         : {
@@ -257,13 +245,13 @@ function Beat({
       ...(empty ? [{ pause: BEAT_SECONDS * 900 }, { then: onAwake }] : []),
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [said, calling, empty]);
+  }, [calling, empty]);
 
   return (
     <section className="beat">
       <MuteButton />
       <Moon size={72} phase={dawn ? 0 : 0.24} className={dawn && ready ? "sun" : undefined} />
-      {said ? (
+      {spoke ? (
         <p className="beat-line">{shown(closing ? SLEEP[closing] : OPENING)}</p>
       ) : (
         // nothing but the moon while the wood rises
@@ -289,25 +277,12 @@ function Beat({
             </>
           )}
         </>
-      ) : said ? (
-        <>
-          {/* `said` means `left` is already inside the beat, so this counts
-              5…1 on its own — clamping a longer lead-in into it just printed
-              "5" five times while the ring pulsed, which read as broken. It
-              holds at 1 rather than showing 0, because the call is waiting on
-              a bar line and may be a moment behind the count. */}
-          <span className="beat-count" aria-hidden>
-            {Math.max(1, left)}
-          </span>
-          <p className="hint" role="status">
-            Waiting for the table to settle…
-          </p>
-        </>
       ) : (
-        // only the lead-in gets here, and it has nothing to count down to that
-        // the table knows about
+        // the dark between two roles, with nothing counting in it. A number
+        // here was only ever the app promising a moment it then had to keep,
+        // and the moderator it is imitating does not count out loud either.
         <p className="hint" role="status">
-          Night falls over the village.
+          {spoke ? "Waiting for the table to settle…" : "Night falls over the village."}
         </p>
       )}
     </section>

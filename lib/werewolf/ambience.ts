@@ -312,6 +312,8 @@ export interface StingLayer {
 
 /** The third beat of each of the four bars: one, two, *there*, four. */
 const THIRD_OF_EACH_BAR = [2, 6, 10, 14];
+/** The same, every other bar, for a sound too long to come round that often. */
+const THIRD_OF_EVERY_OTHER_BAR = [2, 10];
 
 /**
  * The role's own sound, put back on top of its figure.
@@ -339,7 +341,15 @@ export const stingLayers = (step: NightStep): StingLayer[] =>
         { file: soundFile(HOWL.stem, 3), beats: [0], gain: 0.5 },
         { file: soundFile("sting_werewolf", 1), beats: [10, 14], gain: 0.6 },
       ]
-    : [{ file: soundFile(`sting_${step}`, 1), beats: THIRD_OF_EACH_BAR, gain: 0.6 }];
+    : [
+        {
+          file: soundFile(`sting_${step}`, 1),
+          // the Witch's cauldron is a long bubbling thing rather than a hit,
+          // and four to the bar ran into itself
+          beats: step === "witch" ? THIRD_OF_EVERY_OTHER_BAR : THIRD_OF_EACH_BAR,
+          gain: 0.6,
+        },
+      ];
 
 /**
  * Which take of the stings the night plays.

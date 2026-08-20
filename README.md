@@ -269,7 +269,7 @@ That forced the night to change shape, in **both** modes. **Every role in the bo
 
 Under the voice there are three more layers, declared in [ambience.ts](lib/werewolf/ambience.ts):
 
-- **The bed** — a 45-second loop of slow tribal drums over crickets. It comes up when the night actually falls (not during the deal, which happens with everyone awake), holds for `LEAD_IN_SECONDS` before the moderator says a word, ducks to a third of its level whenever she speaks, and is cut off by the cockerel at dawn rather than fading out under the argument. The first attempt was a forest atmosphere and it was wallpaper — a night that runs five minutes needs a pulse under it, not weather.
+- **The bed** — a 45-second loop of slow tribal drums over crickets. It comes up when the night actually falls (not during the deal, which happens with everyone awake), holds for `LEAD_IN_SECONDS` before the moderator says a word, ducks to half its level whenever she speaks, and is cut off by the cockerel at dawn rather than fading out under the argument. The first attempt was a forest atmosphere and it was wallpaper — a night that runs five minutes needs a pulse under it, not weather.
 - **Howls**, dropped over the top at a random interval inside `HOWL_GAP`, in three takes so the same one never lands twice running.
 - **A sting per role**, fired at the same instant the role is named. Each one is a thing that role does — stone on stone for the Masons, coins in a purse for the Robber, a ticking clock for the Insomniac — and it is most of why the reference app feels like a game rather than a menu. It used to lead the line by a second, which mostly made the table wonder what the first noise was.
 
@@ -294,7 +294,7 @@ Each sting has **four takes**, and `SoundSpec.retakes` lets a later take be a di
 
 That trade is real, and is why nothing gets deleted: a music model writes music, so the Robber's coins came back as *metallic percussion* and the Masons' stone as *a hard hit*. The thing that made the first set worth having was that you knew whose call it was before you were told, and that is the thing the fourth set lost.
 
-So both. `stingLayers` puts take 1 back on top of take 4 — the composed figure carries the rhythm and the key, and the original sting is dropped on the **third beat of each of the four bars** as the accent: one, two, *coins*, four, four times over. The Werewolf is the deliberate exception and gets a shape rather than a pulse — a howl over the first half, then the growl twice in the second — because it is the one call the whole table is listening for.
+So both. `stingLayers` puts take 1 back on top of take 4 — the composed figure carries the rhythm and the key, and the original sting is dropped on the **third beat of each of the four bars** as the accent: one, two, *coins*, four, four times over. Two exceptions: the Witch's cauldron is a long bubbling thing rather than a hit, so it comes round every other bar instead of every one; and the Werewolf gets a shape rather than a pulse — a howl over the first half, then the growl twice in the second — because it is the one call the whole table is listening for.
 
 Every piece of that is scheduled against the same audio clock as the bed, so the accents land *on* the beat rather than near it, and `STING_TAKE` still picks which figure plays underneath.
 
@@ -322,6 +322,8 @@ Rooms read the same script on **every** device. The obvious worry — that a pho
 And in a room your screen **waits for your call**. The state moves the instant the previous role acts, so a prompt that appeared with it let a quick player answer before the moderator had said a word; the next call then queued behind a line still playing, and a few roles in, the voice was a whole turn behind the table. Now the prompt arrives when the voice does, which is the rule the one-phone night already played by. A generous backstop releases it regardless, since audio failing in a way nothing catches must never strand a player.
 
 [Night.tsx](components/werewolf/Night.tsx) still keeps the two modes as separate functions rather than one screen with a flag, because they are genuinely different experiences: one phone has a beat between roles and a handover, and a room has neither.
+
+The beat between roles used to show a countdown, and it is gone. A number on screen is a second opinion about when things happen: every change to the script — the length of the beat, the wait for a bar line, the length of a line itself — moved the audio and left the number describing the old timing. It was wrong again after every tweak. The screen now carries two flags, `spoke` and `ready`, and the queue sets them as it reaches each cue, so there is one clock and the words follow it.
 
 #### Card art
 

@@ -1049,16 +1049,14 @@
 }
 
 /* With the call to the vote in it, the clock becomes a bar: the reading on the
-   left, the one thing you can press on the right. */
+   left, the one thing you can press on the right. The reading stays centred
+   over its own caption — ranged left it sat off to one side of "LEFT TO
+   ARGUE", which is wider than the time and made the whole thing look ragged. */
 .clock.with-action {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-}
-
-.clock.with-action .clock-face {
-  align-items: flex-start;
 }
 
 .clock.with-action .day-call {

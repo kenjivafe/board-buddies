@@ -12,6 +12,7 @@ import End from "./End";
 import { skyFor } from "./Game";
 import Lineup from "./Lineup";
 import Night from "./Night";
+import RoomDeal from "./RoomDeal";
 import RoomNarrator from "./RoomNarrator";
 import { YouAre } from "./Table";
 import { NarratorProvider } from "./useNarrator";
@@ -33,6 +34,16 @@ export default function RoomGame({ code }: { code: string }) {
    * because the narrator is a sibling of it, not a parent.
    */
   const [called, setCalled] = useState<NightStep | null>(null);
+  /**
+   * Whether the night has finished saying goodbye.
+   *
+   * The phase turns to day the moment the last role acts, but the script still
+   * owes the table two lines — the last role to bed, and everybody awake. The
+   * cockerel and the argument both used to arrive on top of those. This lags
+   * the phase until the narrator has actually got the words out, exactly as
+   * the one-phone night does.
+   */
+  const [dawned, setDawned] = useState(false);
 
   return (
     <RoomShell
@@ -59,6 +70,7 @@ export default function RoomGame({ code }: { code: string }) {
       {(room, dispatch) => {
         const view = room.state as OnuwView;
         const send = dispatch as React.Dispatch<Action>;
+        const dawning = (view.phase === "day" || view.phase === "vote") && !dawned;
 
         return (
           <NarratorProvider>
@@ -70,6 +82,9 @@ export default function RoomGame({ code }: { code: string }) {
                 dispatch={send}
                 paces={room.isHost}
                 onCalled={setCalled}
+                dawning={dawning}
+                onDawned={() => setDawned(true)}
+                onNight={() => setDawned(false)}
               />
             </div>
             {/*
@@ -80,12 +95,16 @@ export default function RoomGame({ code }: { code: string }) {
             */}
             {view.phase === "ended" ? (
               <End view={view} dispatch={send} canControl={room.isHost} />
-            ) : view.phase === "day" || view.phase === "vote" ? (
+            ) : view.phase === "deal" ? (
+              <RoomDeal view={view} dispatch={send} canControl={room.isHost} />
+            ) : (view.phase === "day" || view.phase === "vote") && !dawning ? (
               <>
                 <Day view={view} dispatch={send} canControl={room.isHost} />
                 <YouAre view={view} />
               </>
             ) : (
+              /* the night, and the tail of it: while `dawning` this is still
+                 the dark, because the moderator has not finished speaking */
               <>
                 <Night view={view} dispatch={send} called={called} />
                 <YouAre view={view} />

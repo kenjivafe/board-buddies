@@ -51,6 +51,12 @@ export interface OnuwView {
   discussionSeconds: number;
   dealIndex: number;
   /**
+   * Who has looked at their card, during the room deal. Public on purpose:
+   * it says who the table is waiting for and nothing whatsoever about what
+   * anybody was dealt.
+   */
+  dealSeen: string[];
+  /**
    * The step, but only for the people it wakes. Everyone else gets null and a
    * dark screen: publishing the running order would announce which roles were
    * actually dealt to players and which are sitting in the centre.
@@ -121,6 +127,7 @@ export function viewFor(state: OnuwState, viewerId: string | null): OnuwView {
     lineup: state.lineup,
     discussionSeconds: state.discussionSeconds,
     dealIndex: state.dealIndex,
+    dealSeen: state.dealSeen ?? [],
     dayEndsAt: state.dayEndsAt,
     outcome: state.outcome,
     log: state.log,

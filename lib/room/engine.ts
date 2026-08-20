@@ -228,27 +228,14 @@ const kingsCup: Adapter = {
 
 // ---------- Werewolf (One Night) ----------
 
-/**
- * The deal exists only because a shared phone has to be handed round. On
- * separate devices the card you were dealt simply sits on your own screen all
- * game, so the round is walked through here rather than rendered.
- *
- * Applied to everything this adapter hands back, not just the opening state:
- * RESTART deals again through START and lands here too. Skipping it there left
- * the room sitting in `deal` with no legal action to escape by — DEAL_NEXT is
- * exactly what rooms refuse — so "deal again" dropped every device onto the
- * day screen and then rejected the vote. Coup's adapter has the same guard for
- * the same reason.
+/*
+ * Rooms used to walk the deal through here and start on the night, on the
+ * grounds that a card sitting on its owner's own screen needs no handing
+ * round. True, and it still skipped the moment the game is actually made of:
+ * everybody looking at what they were dealt and working out what it means
+ * before the dark. Now the room holds in `deal` until every seat has said
+ * they have seen it — SAW_DEAL below — or the host starts without them.
  */
-function skipOnuwDeal(state: OnuwState): OnuwState {
-  let next = state;
-  // one pass per seat, so this always drains; the ceiling is only here so a
-  // future change can't wedge the server
-  for (let guard = 0; guard <= MAX_PLAYERS && next.phase === "deal"; guard++) {
-    next = wwReducer(next, { type: "DEAL_NEXT" });
-  }
-  return next;
-}
 
 const werewolf: Adapter = {
   minSeats: MIN_PLAYERS,
@@ -262,17 +249,12 @@ const werewolf: Adapter = {
     const problem = lineupProblem(lineup, seats.length);
     if (problem) throw new RoomError("bad-action", problem, 400);
 
-    return skipOnuwDeal(
-      wwReducer(wwInitial(), {
-        type: "START",
-        players: seats.map((s) => ({ id: s.id, name: s.name })),
-        lineup,
-        discussionSeconds: Math.min(
-          1800,
-          Math.max(0, Math.floor(options.discussionSeconds ?? 300))
-        ),
-      })
-    );
+    return wwReducer(wwInitial(), {
+      type: "START",
+      players: seats.map((s) => ({ id: s.id, name: s.name })),
+      lineup,
+      discussionSeconds: Math.min(1800, Math.max(0, Math.floor(options.discussionSeconds ?? 300))),
+    });
   },
 
   apply(raw, rawAction, actorId, isHost) {
@@ -284,6 +266,18 @@ const werewolf: Adapter = {
       state.step === step && wwActors(state, step).some((p) => p.id === actorId);
 
     switch (action.type) {
+      case "SAW_DEAL":
+        // nobody gets to look at their card on somebody else's behalf, and
+        // nobody gets to hurry the table along by answering for them
+        if (action.playerId !== actorId) deny("You can only answer for yourself.");
+        if (state.phase !== "deal") deny("The cards are already out.");
+        break;
+
+      case "BEGIN_NIGHT":
+        if (!isHost) deny("The host is running this table.");
+        if (state.phase !== "deal") deny("The night has already started.");
+        break;
+
       case "WAKE_ACK":
         if (action.playerId !== actorId) deny("You can only answer for yourself.");
         if (!state.step || !isActor(state.step)) deny("Nothing woke you.");
@@ -332,7 +326,8 @@ const werewolf: Adapter = {
         break;
 
       case "DEAL_NEXT":
-        // rooms deal to every device at once, so nobody walks anything along
+        // rooms deal to every device at once, so there is no queue to advance;
+        // SAW_DEAL is how a seat says it is done looking
         deny("Not available in a room.");
         break;
 
@@ -345,7 +340,7 @@ const werewolf: Adapter = {
         throw new RoomError("bad-action", "Unknown action.", 400);
     }
 
-    return skipOnuwDeal(wwReducer(state, action));
+    return wwReducer(state, action);
   },
 
   view(state, viewerId) {

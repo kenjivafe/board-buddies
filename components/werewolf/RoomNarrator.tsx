@@ -52,6 +52,9 @@ export default function RoomNarrator({
   dispatch,
   paces,
   onCalled,
+  dawning,
+  onDawned,
+  onNight,
 }: {
   view: OnuwView;
   dispatch: React.Dispatch<Action>;
@@ -59,16 +62,44 @@ export default function RoomNarrator({
   paces: boolean;
   /** told which role has actually been called, so the screen can wait for it */
   onCalled: (step: NightStep | null) => void;
+  /** the phase says day, but the night has not finished speaking */
+  dawning: boolean;
+  /** …and now it has */
+  onDawned: () => void;
+  /** a fresh night, so whoever is holding that flag can put it down */
+  onNight: () => void;
 }) {
   const { enqueue } = useNarrator();
   const spoken = useRef<NightStep | null>(null);
   /** what the night is on *now*, so a late cue can tell it has been overtaken */
   const live = useRef<NightStep | null>(null);
   const backstop = useRef<number | undefined>(undefined);
+  /** the closing run is one script, and strict mode would otherwise queue it twice */
+  const dawnRun = useRef(false);
+  const dawnStop = useRef<number | undefined>(undefined);
 
+  /*
+   * Still night while the night is still talking. The cockerel is the sound of
+   * the phase changing, and the phase changes the instant the last role acts —
+   * which is two lines before the table is actually awake, so it used to crow
+   * over "Insomniac, close your eyes".
+   */
   useScene(
-    view.phase === "night" ? "night" : view.phase === "day" || view.phase === "vote" ? "day" : "off"
+    view.phase === "night" || dawning
+      ? "night"
+      : view.phase === "day" || view.phase === "vote"
+        ? "day"
+        : "off"
   );
+
+  // a new night — or a re-deal — puts the closing script back in its box
+  useEffect(() => {
+    if (view.phase === "night" || view.phase === "deal") {
+      dawnRun.current = false;
+      onNight();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view.phase]);
 
   const step = view.narrate;
 
@@ -141,16 +172,36 @@ export default function RoomNarrator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, view.phase, paces]);
 
-  useEffect(() => () => window.clearTimeout(backstop.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(backstop.current);
+      window.clearTimeout(dawnStop.current);
+    },
+    []
+  );
 
-  // the last line of the script, once the night has run out
+  // the last lines of the script, once the night has run out
   useEffect(() => {
-    if (view.phase !== "day" || spoken.current === null) return;
+    if (view.phase !== "day" && view.phase !== "vote") return;
+    if (dawnRun.current) return;
+    dawnRun.current = true;
+
     const last = spoken.current;
     spoken.current = null;
     live.current = null;
     window.clearTimeout(backstop.current);
     onCalled(null);
+
+    /*
+     * Nothing owed. Somebody who opened the room, or reloaded it, after the
+     * argument had already started never heard a night and must not be held in
+     * the dark waiting for the end of one.
+     */
+    if (!last) {
+      onDawned();
+      return;
+    }
+
     // the last role finishing is the one moment nobody is expecting to be
     // spoken to, so the night hangs before the table is woken
     enqueue([
@@ -158,7 +209,15 @@ export default function RoomNarrator({
       { line: sleepStem(last) },
       { pause: DAWN_HOLD_SECONDS * 1000 },
       { line: "dawn" },
+      // and only now is it morning: the cockerel and the argument both wait
+      // behind the last thing the moderator has to say
+      { then: onDawned },
     ]);
+
+    // and the same backstop the calls get, for the same reason: a queue that
+    // never finishes must not leave the whole table sitting in the dark
+    window.clearTimeout(dawnStop.current);
+    dawnStop.current = window.setTimeout(onDawned, BACKSTOP_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view.phase]);
 

@@ -507,12 +507,81 @@ function coupGame(...names: string[]): CoupState {
   );
 
   const opened = wolves.start(village, { lineup: box, discussionSeconds: 300 }) as OnuwState;
-  check(opened.phase === "night", `a room starts at the night, not in ${opened.phase}`);
+  check(opened.phase === "deal", `a room starts on the deal, not in ${opened.phase}`);
   check(opened.slots.length === 8, "five seats and three in the middle");
   check(
     opened.players.every((p, i) => p.dealt === opened.slots[i]),
-    "the deal is walked through rather than rendered"
+    "everybody has a card before anybody looks at one"
   );
+
+  /*
+   * The deal round, on separate devices. It used to be walked through by the
+   * adapter on the grounds that a card on its owner's own screen needs no
+   * passing round — but the round is where everybody reads what they were
+   * dealt, and skipping it dropped the table straight into the dark.
+   */
+  {
+    denies(
+      () => wolves.apply(opened, { type: "SAW_DEAL", playerId: village[1].id }, village[0].id, false),
+      "nobody can say they have looked on somebody else's behalf"
+    );
+    denies(
+      () => wolves.apply(opened, { type: "BEGIN_NIGHT" }, village[1].id, false),
+      "and only the host can start without them"
+    );
+
+    let looking = opened;
+    for (const seat of village.slice(0, -1)) {
+      looking = wolves.apply(
+        looking,
+        { type: "SAW_DEAL", playerId: seat.id },
+        seat.id,
+        seat.id === village[0].id
+      ) as OnuwState;
+    }
+    check(looking.phase === "deal", "the night waits on the last seat");
+    check(
+      looking.dealSeen.length === village.length - 1,
+      `and knows who it is waiting for (${looking.dealSeen.length})`
+    );
+    allows(
+      () =>
+        wolves.apply(
+          looking,
+          { type: "SAW_DEAL", playerId: village[0].id },
+          village[0].id,
+          true
+        ),
+      "looking twice is not an error"
+    );
+
+    const last = village[village.length - 1];
+    const fell = wolves.apply(
+      looking,
+      { type: "SAW_DEAL", playerId: last.id },
+      last.id,
+      false
+    ) as OnuwState;
+    check(fell.phase === "night", `the last look drops the night (${fell.phase})`);
+    check(fell.step !== null, "with a role to wake");
+    denies(
+      () => wolves.apply(fell, { type: "SAW_DEAL", playerId: last.id }, last.id, false),
+      "and the deal is closed behind it"
+    );
+
+    // the host's way past somebody who has put their phone down
+    const forced = wolves.apply(opened, { type: "BEGIN_NIGHT" }, village[0].id, true) as OnuwState;
+    check(forced.phase === "night", `the host can start without them (${forced.phase})`);
+    check(forced.step !== null, "and that night has a role to wake too");
+
+    // nothing about the deal says anything about anybody's card
+    const onlooker = wolves.view(opened, village[1].id) as { dealSeen: string[] };
+    check(Array.isArray(onlooker.dealSeen), "who has looked is public");
+    check(
+      !JSON.stringify(onlooker).includes(`"slots"`),
+      "and the deal view still does not carry the table's cards"
+    );
+  }
 
   /**
    * The deal is shuffled, so which cards reach players is up to chance. The
@@ -556,6 +625,8 @@ function coupGame(...names: string[]): CoupState {
       ])
     ),
   } as OnuwState;
+  /** the same forced table, still on the deal, for the redaction check below */
+  const dealing = state;
   while (state.phase === "deal") state = wwReducer(state, { type: "DEAL_NEXT" });
 
   const dealt = (role: WwRole) => state.players.find((p) => p.dealt === role)!.id;
@@ -665,21 +736,25 @@ function coupGame(...names: string[]): CoupState {
   );
 
   /*
-   * Dealing again has to land ready to play, exactly like the opening deal.
-   * It did not: RESTART goes through START, which begins at the pass-and-peek
-   * round, and the adapter only skipped that on the way in. The room sat in
-   * `deal` with no legal action to escape by — DEAL_NEXT is what rooms refuse
-   * — so every device fell through to the day screen, and the vote it offered
-   * was then rejected as "that move isn't available right now".
+   * Dealing again has to land somewhere the room can actually play from.
+   * It once did not: RESTART goes through START, and the adapter skipped the
+   * deal only on the way in, so the room sat in `deal` with no legal action to
+   * escape by — every device fell through to the day screen and the vote it
+   * offered was rejected as "that move isn't available right now". The deal is
+   * a real round in a room now, so landing there is correct; what matters is
+   * that there is a way out of it.
    */
   {
     const again = wolves.apply(live, { type: "RESTART" }, wolf, true) as OnuwState;
-    check(again.phase === "night", `a re-deal lands ready to play, not in ${again.phase}`);
-    check(again.step !== null, "a re-deal leaves a role to wake");
-    check(again.dealIndex >= again.players.length, "and the deal round is already walked through");
+    check(again.phase === "deal", `a re-deal opens the deal again, not ${again.phase}`);
+    check(again.dealSeen.length === 0, "with nobody having looked yet");
     check(
       again.players.every((p, i) => p.dealt === again.slots[i]),
       "everybody has a fresh card"
+    );
+    allows(
+      () => wolves.apply(again, { type: "SAW_DEAL", playerId: wolf }, wolf, true),
+      "and a way out of it that the room does not refuse"
     );
     /*
      * Playable from there, rather than needing an action the room refuses. The
@@ -687,7 +762,8 @@ function coupGame(...names: string[]): CoupState {
      * called — so tick past those the way the host does, then check whoever the
      * night actually lands on can act.
      */
-    let ready = again;
+    let ready = wolves.apply(again, { type: "BEGIN_NIGHT" }, wolf, true) as OnuwState;
+    check(ready.phase === "night", `and a night on the far side of it (${ready.phase})`);
     for (let i = 0; i < 12 && ready.phase === "night"; i++) {
       if (actorsOf(ready, ready.step!).length > 0) break;
       ready = wolves.apply(ready, { type: "TICK" }, wolf, true) as OnuwState;
@@ -729,6 +805,37 @@ function coupGame(...names: string[]): CoupState {
     !scrubbed.includes("werewolf"),
     "and outside the box, the pack is never named to its neighbours"
   );
+
+  /*
+   * The same, on the deal — which is new ground for a room. It is the one
+   * screen whose whole job is to show somebody a card, so it is exactly where
+   * showing them the wrong one would go unnoticed.
+   */
+  {
+    const villagerId = dealing.players.find((p) => p.dealt === "villager")!.id;
+    const theirDeal = wolves.view(dealing, villagerId) as {
+      self: { dealt: WwRole; notes: unknown[] };
+      dealSeen: string[];
+    };
+    const raw = JSON.stringify(theirDeal);
+    check(theirDeal.self.dealt === "villager", "you are shown the card you were dealt");
+    check(!raw.includes('"slots"'), "and not the map of where every card is");
+    check(!raw.includes('"past"'), "nor the undo stack");
+    check(
+      (raw.match(/"notes":/g) ?? []).length === 1 && theirDeal.self.notes.length === 1,
+      "nor anybody else's notebook"
+    );
+    check(Array.isArray(theirDeal.dealSeen), "who has looked is public");
+    const scrubbedDeal = JSON.stringify({
+      ...(wolves.view(dealing, villagerId) as object),
+      lineup: null,
+      narrate: null,
+    });
+    check(
+      !scrubbedDeal.includes("werewolf"),
+      "and the deal never names the pack to the people it is dealing to"
+    );
+  }
 }
 
 // ---------- clearing out a seat nobody is sitting in ----------

@@ -23,6 +23,13 @@ export type Action =
     }
   /** one phone: walk the dealt cards round the table */
   | { type: "DEAL_NEXT" }
+  /** a room: "I've looked at mine". The night starts when everybody has. */
+  | { type: "SAW_DEAL"; playerId: string }
+  /**
+   * "Start without them." The deal waits on every seat, and somebody who has
+   * put their phone down should not be able to hold the table there forever.
+   */
+  | { type: "BEGIN_NIGHT" }
   /**
    * "I've seen it" for the three steps that only show somebody something.
    * `centreSlot` is honoured for a werewolf who turns out to be alone, who is
@@ -67,6 +74,7 @@ export function initialState(): OnuwState {
     lineup: emptyLineup(),
     discussionSeconds: 300,
     dealIndex: 0,
+    dealSeen: [],
     step: null,
     done: [],
     acked: [],
@@ -436,6 +444,28 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
       const next = state.dealIndex + 1;
       if (next < state.players.length) return { ...state, dealIndex: next };
       return advance({ ...state, dealIndex: next, phase: "night" });
+    }
+
+    /*
+     * The same round, on separate devices. Nobody is passing anything, so
+     * rather than a cursor walking the seats this is a set of everybody who
+     * has looked, and the night falls when the last one has.
+     */
+    case "SAW_DEAL": {
+      if (state.phase !== "deal") return state;
+      if (!state.players.some((p) => p.id === action.playerId)) return state;
+      const seen = state.dealSeen ?? [];
+      // a second tap is not an error, but it must still come back as a new
+      // object or the room reports the move as refused
+      if (seen.includes(action.playerId)) return { ...state };
+      const dealSeen = [...seen, action.playerId];
+      if (dealSeen.length < state.players.length) return { ...state, dealSeen };
+      return advance({ ...state, dealSeen, dealIndex: state.players.length, phase: "night" });
+    }
+
+    case "BEGIN_NIGHT": {
+      if (state.phase !== "deal") return state;
+      return advance({ ...state, dealIndex: state.players.length, phase: "night" });
     }
 
     // ---------- the three steps that only show somebody something ----------

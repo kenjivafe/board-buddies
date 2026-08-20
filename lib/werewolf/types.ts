@@ -101,6 +101,13 @@ export interface OnuwState {
   discussionSeconds: number;
   /** seat currently peeking during the deal */
   dealIndex: number;
+  /**
+   * Who has looked at the card they were dealt. Rooms only: on one phone the
+   * deal is a queue of one, walked along by whoever is holding it, but on
+   * separate devices everybody looks at once and the night cannot start until
+   * the last of them has.
+   */
+  dealSeen: string[];
   step: NightStep | null;
   /** steps already answered, so the walk never doubles back */
   done: NightStep[];

@@ -72,7 +72,7 @@ function Clock({ endsAt, action }: { endsAt: number; action?: React.ReactNode })
         <span className="clock-time">{mmss(left)}</span>
         <span className="eyebrow">{left <= 0 ? "Time's up" : "Left to argue"}</span>
       </span>
-      {action}
+      {action && <span className="clock-action">{action}</span>}
     </div>
   );
 }

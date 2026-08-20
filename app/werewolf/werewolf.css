@@ -324,7 +324,6 @@
 
 .player-row,
 .lineup-row,
-.note,
 .reading,
 .tally-row,
 .key-row,
@@ -982,21 +981,63 @@
   margin-top: 10px;
 }
 
+/* A scrap of the same paper the cards are printed on.
+
+   The rest of this page keeps its ground dark on purpose — the cards are the
+   only light things in the game, and they read as objects on the table rather
+   than holes cut in it. The notebook is the one place worth breaking that,
+   because it is not chrome describing the game: it is a thing a player would
+   actually have, and ink on paper is what it is made of.
+
+   The reveal (.told) stays dark. There the card *is* the message, and it needs
+   the ground behind it to keep out of the way. */
 .note {
-  padding: 13px 15px;
-  border-left: 2px solid var(--gold-deep);
-  border-radius: 0 4px 4px 0;
+  position: relative;
+  overflow: hidden;
+  padding: 13px 15px 14px;
+  border: 1px solid var(--paper-edge);
+  border-left: 3px solid var(--gold-deep);
+  border-radius: 1px 3px 3px 1px;
+  color: var(--ink);
+  background:
+    /* the candle, falling across it from the left */
+    radial-gradient(120% 90% at 8% 0%, rgba(255, 249, 226, 0.5), transparent 62%),
+    /* age gathering in the far corner */
+    radial-gradient(80% 60% at 100% 100%, rgba(120, 92, 44, 0.22), transparent 70%),
+    linear-gradient(176deg, var(--paper) 0%, #d8c69d 55%, #cbb790 100%);
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.45),
+    0 6px 14px -10px rgba(0, 0, 0, 0.9);
+}
+
+/* the same grain the whole deck is printed on */
+.note::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }
 
 .note-text {
+  position: relative;
   font-size: 13px;
   line-height: 1.55;
-  color: var(--text-dim);
+  color: var(--ink);
+  opacity: 0.86;
 }
 
 .note .card-row {
+  position: relative;
   margin-top: 12px;
   justify-content: center;
+}
+
+/* on paper the caption is written, not printed in the interface's grey */
+.note .card-cap {
+  color: rgba(23, 18, 12, 0.62);
 }
 
 .note.fresh {
@@ -1004,7 +1045,7 @@
 }
 
 .note.fresh .note-text {
-  color: var(--text);
+  opacity: 1;
 }
 
 /* What a role was actually shown is the whole point of waking them up, so it
@@ -1055,8 +1096,15 @@
 .clock.with-action {
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
   gap: 14px;
+}
+
+/* The reading takes the whole of the bar that the button is not using, and
+   centres itself in it. Pinned to the left edge it read as an afterthought
+   next to the button rather than the other half of the same control. */
+.clock.with-action .clock-face {
+  flex: 1;
+  min-width: 0;
 }
 
 .clock.with-action .day-call {

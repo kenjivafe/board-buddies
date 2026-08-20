@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ROLE_INFO } from "@/lib/werewolf/roles";
 import type { Action } from "@/lib/werewolf/reducer";
 import type { NightStep } from "@/lib/werewolf/types";
@@ -216,6 +216,21 @@ function Beat({
    */
   const [ready, setReady] = useState(false);
 
+  /**
+   * Whether this beat has already been handed to the narrator.
+   *
+   * Queueing is not something that can be done twice. Strict mode runs every
+   * effect setup, cleanup, setup — which used to be invisible here, because
+   * the old one-shot `say` cut off whatever was playing and the second call
+   * simply replaced the first. A queue appends, so the same run went in twice
+   * and the whole night was read out double.
+   *
+   * A ref rather than a dep, because there is nothing to react to: one beat
+   * has exactly one script, and `key={step}` means a genuinely new beat is a
+   * genuinely new component with a fresh one of these.
+   */
+  const read = useRef(false);
+
   /*
    * The whole run goes in at once, in order: the last role to bed, a beat, then
    * the call — the role's sound and its name together, dropped on a bar line.
@@ -224,7 +239,8 @@ function Beat({
    * the move-along waits behind the line instead of racing it.
    */
   useEffect(() => {
-    if (!said) return;
+    if (!said || read.current) return;
+    read.current = true;
     enqueue([
       { line: closing ? sleepStem(closing) : "open" },
       { pause: closing || lead ? callLeadMs(BED_BAR_SECONDS) : 0 },

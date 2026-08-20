@@ -123,6 +123,8 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
   const bed = useRef<NightBed | null>(null);
   const wood = () => (bed.current ??= new NightBed());
   const howlTimer = useRef<number | undefined>(undefined);
+  /** what the scene already is, so setting it to the same thing does nothing */
+  const sceneNow = useRef<"night" | "day" | "off" | null>(null);
 
   const duck = useCallback((on: boolean) => {
     bed.current?.duck(on, BED.gain);
@@ -268,6 +270,11 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
 
   const setScene = useCallback(
     (scene: "night" | "day" | "off") => {
+      // the same guard the beat needs, for the same reason: strict mode runs
+      // this twice, and the second run crowed a second cockerel over the first
+      if (sceneNow.current === scene) return;
+      sceneNow.current = scene;
+
       if (scene === "night") {
         if (mutedRef.current) return;
         void wood().start(BED.gain);
@@ -305,6 +312,11 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
         audio.current?.pause();
         window.clearTimeout(howlTimer.current);
         bed.current?.stop(300);
+      } else if (sceneNow.current === "night") {
+        // and put the wood back under a night that is still going, rather than
+        // leaving it silent until the phase happens to change
+        void wood().start(BED.gain);
+        scheduleHowl();
       }
       return next;
     });

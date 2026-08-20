@@ -30,15 +30,30 @@ const LOW_HZ = 200;
 /** where a jungle bed could plausibly sit */
 const BPM_RANGE: [number, number] = [55, 150];
 
+/** as much of mpg123-decoder as this needs; see the import below */
+interface Mp3Decoder {
+  ready: Promise<unknown>;
+  decode(data: Uint8Array): { channelData: Float32Array[]; sampleRate: number };
+  free(): void;
+}
+
 async function main() {
   if (!fs.existsSync(FILE)) {
     console.error(`no bed at ${FILE} — run scripts/generate-sfx.ts first`);
     process.exit(1);
   }
 
-  let MPEGDecoder: typeof import("mpg123-decoder").MPEGDecoder;
+  let MPEGDecoder: new () => Mp3Decoder;
   try {
-    ({ MPEGDecoder } = await import("mpg123-decoder"));
+    /*
+     * The specifier is a variable on purpose. This package is deliberately not
+     * a dependency — it is a wasm decoder wanted once, by hand, to produce
+     * numbers that then live in the source. Written as a literal, `tsc` and
+     * `next build` both try to resolve its types and fail for everybody who
+     * has not installed it, which is everybody.
+     */
+    const wasm = "mpg123-decoder";
+    ({ MPEGDecoder } = (await import(wasm)) as { MPEGDecoder: new () => Mp3Decoder });
   } catch {
     console.error("needs a decoder:  npm i --no-save mpg123-decoder");
     process.exit(1);

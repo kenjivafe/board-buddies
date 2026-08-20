@@ -626,6 +626,26 @@
   margin-top: 14px;
 }
 
+/* The card that left, the card that arrived. Not two facts of equal weight:
+   one of them is who you are for the rest of the game. */
+.swap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.swap-arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--gold);
+  /* the captions sit under the cards, so the arrow lines up with the art */
+  margin-bottom: 16px;
+  opacity: 0.85;
+}
+
 /* what a card actually does, printed under it rather than over the art */
 .role-brief {
   margin-top: 14px;

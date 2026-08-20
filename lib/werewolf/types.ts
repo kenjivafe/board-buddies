@@ -66,8 +66,12 @@ export interface Note {
    * which lets the screen draw all three and leave the ones nobody looked at
    * face down. Seeing the second of three is a different piece of knowledge
    * from seeing "a card", and the old single thumbnail lost that.
+   *
+   * `was` marks the card this player used to be holding, so a note about
+   * their own card changing hands can be drawn as the swap it is rather than
+   * as one card and a sentence.
    */
-  cards: { role: Role; label: string; centre?: number }[];
+  cards: { role: Role; label: string; centre?: number; was?: boolean }[];
 }
 
 export type LogKind = "night" | "vote" | "death" | "dawn";

@@ -307,6 +307,39 @@ function Beat({
 function DeviceNight({ view, dispatch, called }: Props & { called: NightStep | null }) {
   const step = view.step;
   const me = view.selfId ? playerIn(view, view.selfId) : null;
+
+  /**
+   * What this device just found out, held on screen until it has been read.
+   *
+   * One phone has always had this and a room had nothing: you tapped a card,
+   * the server moved the night on, your step went away with it and the screen
+   * was back to "the village sleeps" before the card you had turned over ever
+   * appeared. The whole reward for waking up went past in a frame.
+   *
+   * Keyed on the step as well as the count, so a stale entry from a role that
+   * turned out to learn nothing cannot pick up somebody else's notes later —
+   * the Insomniac is quite capable of waking the same device twice a night.
+   */
+  const [learned, setLearned] = useState<{ from: number; step: NightStep } | null>(null);
+  const notes = me ? notesFor(view, me.id) : [];
+  const fresh = learned
+    ? notes.slice(learned.from).filter((note) => note.step === learned.step)
+    : [];
+
+  if (fresh.length > 0) {
+    return (
+      <section className="gate">
+        <span className="eyebrow">What you found out</span>
+        <Shown notes={fresh} />
+        <Rule />
+        <button className="btn btn-primary" onClick={() => setLearned(null)}>
+          Read it — back to sleep
+        </button>
+        <p className="hint">Remember it. Nothing writes it down for you but this.</p>
+      </section>
+    );
+  }
+
   if (!step || !me || called !== step) return <Asleep view={view} />;
 
   return (
@@ -318,7 +351,7 @@ function DeviceNight({ view, dispatch, called }: Props & { called: NightStep | n
         step={step}
         actors={[me]}
         narrated={false}
-        onActed={() => {}}
+        onActed={() => setLearned({ from: notes.length, step })}
       />
     </>
   );
@@ -529,6 +562,13 @@ function SeerPanel({ view, dispatch, actors, onActed }: PanelProps) {
 
 function RobberPanel({ view, dispatch, actors, onActed }: PanelProps) {
   const actorId = actors[0].id;
+  /*
+   * Picked, then confirmed — the way the Seer and the Troublemaker already
+   * work. This one committed on the first tap, which put the least reversible
+   * decision in the game one stray thumb away and gave no chance to change
+   * your mind about a card you cannot give back.
+   */
+  const [who, setWho] = useState<string | null>(null);
   const take = (targetId: string | null) => {
     onActed();
     dispatch({ type: "ROBBER", targetId });
@@ -536,8 +576,16 @@ function RobberPanel({ view, dispatch, actors, onActed }: PanelProps) {
 
   return (
     <>
-      <PickList people={others(view, actorId)} selected={[]} onPick={take} label="Who to rob" />
+      <PickList
+        people={others(view, actorId)}
+        selected={who ? [who] : []}
+        onPick={(id) => setWho(who === id ? null : id)}
+        label="Who to rob"
+      />
       <Rule />
+      <button className="btn btn-primary" disabled={who === null} onClick={() => take(who)}>
+        {who ? `Rob ${playerIn(view, who)?.name}` : "Pick somebody"}
+      </button>
       <button className="btn btn-ghost" onClick={() => take(null)}>
         Rob nobody — stay the Robber
       </button>
@@ -549,6 +597,7 @@ function RobberPanel({ view, dispatch, actors, onActed }: PanelProps) {
 
 function WitchPanel({ view, dispatch, actors, onActed }: PanelProps) {
   const held = view.witchSaw;
+  const [plantOn, setPlantOn] = useState<string | null>(null);
 
   // she has turned one over, and now it has to go somewhere
   if (held !== null) {
@@ -562,14 +611,22 @@ function WitchPanel({ view, dispatch, actors, onActed }: PanelProps) {
         </p>
         <PickList
           people={view.players}
-          selected={[]}
-          onPick={(targetId) => {
-            onActed();
-            dispatch({ type: "WITCH_PLACE", targetId });
-          }}
+          selected={plantOn ? [plantOn] : []}
+          onPick={(id) => setPlantOn(plantOn === id ? null : id)}
           label="Who to plant it on"
           tagFor={(p) => (p.id === actors[0].id ? "You" : null)}
         />
+        <Rule />
+        <button
+          className="btn btn-primary"
+          disabled={plantOn === null}
+          onClick={() => {
+            onActed();
+            dispatch({ type: "WITCH_PLACE", targetId: plantOn! });
+          }}
+        >
+          {plantOn ? `Plant it on ${playerIn(view, plantOn)?.name}` : "Pick somebody"}
+        </button>
       </>
     );
   }
@@ -641,19 +698,28 @@ function TroublemakerPanel({ view, dispatch, actors, onActed }: PanelProps) {
 // ---------- the drunk ----------
 
 function DrunkPanel({ view, dispatch, onActed }: PanelProps) {
+  const [slot, setSlot] = useState<number | null>(null);
   return (
     <>
       <CentrePick
         slots={centreSlotsIn(view)}
-        selected={[]}
-        onPick={(centreSlot) => {
-          onActed();
-          dispatch({ type: "DRUNK", centreSlot });
-        }}
+        selected={slot === null ? [] : [slot]}
+        onPick={(s) => setSlot(slot === s ? null : s)}
       />
       <p className="hint" style={{ marginTop: 12 }}>
         You will not be told what you get. From here you genuinely do not know what you are.
       </p>
+      <Rule />
+      <button
+        className="btn btn-primary"
+        disabled={slot === null}
+        onClick={() => {
+          onActed();
+          dispatch({ type: "DRUNK", centreSlot: slot! });
+        }}
+      >
+        {slot === null ? "Pick one from the middle" : "Take it, and don't look"}
+      </button>
     </>
   );
 }

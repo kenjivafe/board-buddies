@@ -572,7 +572,12 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
       const next = addNote({ ...state, past: pushPast(state), slots }, robber.id, {
         step: "robber",
         text: `You took ${nameOf(state, action.targetId)}'s card and left them the Robber. You are now the ${ROLE_INFO[taken].name}.`,
-        cards: [{ role: taken, label: "Now yours" }],
+        // the card that left, then the card that arrived — the screen draws
+        // this as the swap it is
+        cards: [
+          { role: "robber", label: "Was yours", was: true },
+          { role: taken, label: "Now yours" },
+        ],
       });
       return finish(next, "robber");
     }
@@ -699,7 +704,14 @@ export function reducer(state: OnuwState, action: Action): OnuwState {
           now === "insomniac"
             ? "You check your card. Still the Insomniac — nobody touched you."
             : `You check your card. It isn't yours any more: you are the ${ROLE_INFO[now].name}.`,
-        cards: [{ role: now, label: "Yours, now" }],
+        // nothing moved, so there is nothing to draw an arrow between
+        cards:
+          now === "insomniac"
+            ? [{ role: now, label: "Yours, now" }]
+            : [
+                { role: "insomniac", label: "Was yours", was: true },
+                { role: now, label: "Yours, now" },
+              ],
       });
       return finish(next, "insomniac");
     }

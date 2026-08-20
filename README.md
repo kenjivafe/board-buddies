@@ -232,6 +232,12 @@ The night owes two lines on its way out, so the closing beat runs *after* the ph
 
 **Being shown a centre card draws all three of them.** The two nobody turned over stay face down, which is the point: *which* of the three you saw is part of what you know, and a Seer who took the first and the third can tell the table the second is still unaccounted for. `Note.cards` carries an optional `centre` index for it. The face-down slots hold no card data at all, so there is nothing there to leak — the render test counts `<img>` elements to keep it that way.
 
+**Being told your own card has moved draws the swap.** `Note.cards` can mark one entry `was`, and the pair renders as the card that left, small, an arrow, and the card that arrived at full size — they are not two facts of equal weight, since one of them is who you are for the rest of the game. Only the Robber and the Insomniac ever get it: the Drunk swaps blind, and the Witch and the Troublemaker move other people's cards without telling them. "Your card" reads the same notes, so that section shows what you *know* you are holding rather than what you were dealt.
+
+**Rooms hold the reveal too.** One phone always had a "what you found out" gate and a room had nothing — you tapped a card, the server moved the night on, your step went with it, and the screen was back to *the village sleeps* before the card you turned over ever appeared. The whole reward for waking up went past in a frame. `DeviceNight` keys its gate on the step as well as the note count, because the Insomniac is quite capable of waking the same device twice in a night.
+
+**The night's irreversible picks are all pick-then-confirm now.** The Seer and the Troublemaker always were; the Robber, the Drunk and the Witch's plant committed on the first tap, which put the least reversible decision in the game one stray thumb away.
+
 The notebook and the reveal share one `NoteCards` so they cannot drift, which they did once: the reveal drew the whole middle and going back to the notebook to check turned it into a single thumbnail again, at exactly the moment you want the other two. The log gets thumbnails, the reveal gets the width of the screen, and both get three cards.
 
 The only screens that name anybody are the opening deal (which leaks nothing — everyone is passed their own card in seat order) and the day, when it's all public anyway.

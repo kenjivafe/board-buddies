@@ -22,6 +22,22 @@ export const TEAM_NAME: Record<string, string> = {
   tanner: "On nobody's side",
 };
 
+/** Between the card that left and the card that arrived. */
+export function Swapped({ size = 22 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden focusable="false">
+      <path
+        d="M3.5 12h16m0 0-5.4-5.2M19.5 12l-5.4 5.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * A body in a chair. Deliberately anonymous — a room has no avatars and the
  * point of the roster is who is *here*, not who anybody is.

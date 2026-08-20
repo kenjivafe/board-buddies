@@ -1,9 +1,19 @@
 "use client";
 
 import { ROLE_INFO } from "@/lib/werewolf/roles";
-import type { Note } from "@/lib/werewolf/types";
+import type { Note, Role } from "@/lib/werewolf/types";
 import type { OnuwView, PlayerView } from "@/lib/werewolf/view";
-import { CardBack, CardFace, CardSlot, Person, RoleBrief, Rule, sizeForCount, tint } from "./Bits";
+import {
+  CardBack,
+  CardFace,
+  CardSlot,
+  Person,
+  RoleBrief,
+  Rule,
+  Swapped,
+  sizeForCount,
+  tint,
+} from "./Bits";
 
 /**
  * The people a night role can choose between, as the cards in front of them.
@@ -206,8 +216,40 @@ const ORDINAL = ["First", "Second", "Third"];
  *
  * `compact` is the notebook, which is a log and wants thumbnails.
  */
+/**
+ * What you were holding, and what you are holding now.
+ *
+ * The card that left is small and the card that arrived is full size, because
+ * they are not two facts of equal weight: one of them is who you are for the
+ * rest of the game and the other is who you used to be.
+ */
+export function Swap({
+  was,
+  now,
+  compact = false,
+}: {
+  was: Role;
+  now: Role;
+  compact?: boolean;
+}) {
+  return (
+    <div className="swap">
+      <CardSlot role={was} caption="Was yours" size="sm" />
+      <span className="swap-arrow">
+        <Swapped size={compact ? 18 : 22} />
+      </span>
+      <CardSlot role={now} caption="Yours now" size={compact ? "sm" : "md"} />
+    </div>
+  );
+}
+
 function NoteCards({ cards, compact = false }: { cards: Note["cards"]; compact?: boolean }) {
   if (cards.length === 0) return null;
+
+  // a note about your own card changing hands is drawn as the swap it is
+  const left = cards.find((c) => c.was);
+  const arrived = cards.find((c) => !c.was);
+  if (left && arrived) return <Swap was={left.role} now={arrived.role} compact={compact} />;
 
   /*
    * The three in the middle, with the ones nobody turned over face down.
@@ -276,16 +318,40 @@ export function YouAre({ view }: { view: OnuwView }) {
   const self = view.self;
   if (!self) return null;
 
+  /*
+   * If you have found out that your card is no longer yours, this says so.
+   *
+   * Only the Robber and the Insomniac ever learn it — the Drunk swaps blind
+   * and the Witch and the Troublemaker move other people's cards without
+   * telling them — so this is not a general "what am I holding" display. It
+   * shows what you *know*, which is the only thing the game is willing to say.
+   */
+  const swap = [...self.notes].reverse().find((n) => n.cards.some((c) => c.was));
+  const was = swap?.cards.find((c) => c.was)?.role;
+  const now = swap?.cards.find((c) => !c.was)?.role;
+
   return (
-    <section className="you-are" aria-label="The card you were dealt">
+    <section className="you-are" aria-label="The card you are holding">
       <Rule>Your card</Rule>
-      <div className="you-are-card">
-        <CardFace role={self.dealt} size="md" />
-      </div>
-      <RoleBrief role={self.dealt} />
-      <p className="hint">
-        What you hold at the end is what you win with, and it may not be this.
-      </p>
+      {was && now ? (
+        <>
+          <Swap was={was} now={now} />
+          <RoleBrief role={now} />
+          <p className="hint">
+            Somebody took yours. You act on what you were dealt and win with what you hold.
+          </p>
+        </>
+      ) : (
+        <>
+          <div className="you-are-card">
+            <CardFace role={self.dealt} size="md" />
+          </div>
+          <RoleBrief role={self.dealt} />
+          <p className="hint">
+            What you hold at the end is what you win with, and it may not be this.
+          </p>
+        </>
+      )}
     </section>
   );
 }

@@ -424,9 +424,15 @@ function conserved(s: OnuwState, where: string) {
   const robbed = play(base, { type: "ROBBER", targetId: id(base, "Bo") });
   check(cardOf(robbed, id(base, "Ana")) === "werewolf", "the robber takes the card");
   check(cardOf(robbed, id(base, "Bo")) === "robber", "and leaves their own behind");
+  // the note carries the pair, so the screen can draw the swap: what left and
+  // what arrived, in that order
   check(
-    lastNote(robbed, "Ana").cards[0].role === "werewolf",
+    lastNote(robbed, "Ana").cards.find((c) => !c.was)?.role === "werewolf",
     "and gets to look at what they took"
+  );
+  check(
+    lastNote(robbed, "Ana").cards.find((c) => c.was)?.role === "robber",
+    "beside the card they handed over for it"
   );
   check(
     !(robbed.notes[id(base, "Bo")] ?? []).some((n) => n.text.includes("took")),
@@ -589,7 +595,33 @@ function conserved(s: OnuwState, where: string) {
   // has long since left her
   s = play(s, { type: "INSOMNIAC" });
   const woke = lastNote(s, "Dee");
-  check(woke.cards[0].role === "werewolf", "she checks her card and finds a werewolf");
+  check(
+    woke.cards.find((c) => !c.was)?.role === "werewolf",
+    "she checks her card and finds a werewolf"
+  );
+  check(
+    woke.cards.find((c) => c.was)?.role === "insomniac",
+    "and is shown what it used to be"
+  );
+
+  // …and an Insomniac nobody touched has nothing to draw an arrow between
+  {
+    const quiet = table(
+      [
+        ["Ana", "werewolf"],
+        ["Bo", "villager"],
+        ["Cy", "insomniac"],
+      ],
+      ["seer", "robber", "tanner"]
+    );
+    let q = play(quiet, { type: "WAKE_ACK", playerId: id(quiet, "Ana") });
+    while (step(q) !== null && step(q) !== "insomniac") q = play(q, { type: "TICK" });
+    check(step(q) === "insomniac", `the night reaches her (${String(step(q))})`);
+    q = play(q, { type: "INSOMNIAC" });
+    const still = lastNote(q, "Cy");
+    check(still.cards.length === 1, `one card, not a swap (${still.cards.length})`);
+    check(!still.cards.some((c) => c.was), "and nothing marked as having left");
+  }
   check(woke.text.includes("Werewolf"), "and is told so in as many words");
   check(s.phase === "day", "then morning");
   conserved(s, "after the whole chain");

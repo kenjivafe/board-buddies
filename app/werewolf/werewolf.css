@@ -1041,48 +1041,6 @@
   padding: 16px;
 }
 
-.clock-face {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-/* With the call to the vote in it, the clock becomes a bar: the reading on the
-   left, the one thing you can press on the right. The reading stays centred
-   over its own caption — ranged left it sat off to one side of "LEFT TO
-   ARGUE", which is wider than the time and made the whole thing look ragged. */
-.clock.with-action {
-  flex-direction: row;
-  align-items: center;
-  gap: 14px;
-}
-
-/* Halved evenly. The reading centres in its half; the button keeps to the end
-   of its own, which is the end of the bar. Left to size themselves, the
-   reading took everything the button did not want and the two stopped looking
-   like halves of one control. */
-.clock.with-action .clock-face {
-  flex: 1 1 0;
-  min-width: 0;
-}
-
-.clock.with-action .clock-action {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.clock.with-action .day-call {
-  display: inline-block;
-  flex: none;
-  margin: 0;
-  min-width: 0;
-  padding: 12px 16px;
-  font-size: 14px;
-}
-
 .clock-time {
   font-family: var(--display);
   font-size: clamp(34px, 11vw, 48px);
@@ -1307,6 +1265,12 @@
 .day-status .waiting {
   justify-content: center;
   gap: 8px;
+}
+
+/* the same half, and the same height, as the reading it stands next to */
+.day-status .day-call {
+  margin: 0;
+  min-width: 0;
 }
 
 /* The controls that have to be reachable whatever screen the night is on: the

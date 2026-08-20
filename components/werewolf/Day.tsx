@@ -52,13 +52,12 @@ export default function Day({ view, dispatch, canControl }: Props) {
 }
 
 /**
- * How long is left, and — for whoever can call time — the button that ends it.
- *
- * The two belong in one container rather than stacked: the clock is the reason
- * you would press the button, and reading a countdown and then hunting for the
- * control it refers to is two beats where there should be one.
+ * How long is left. A reading and nothing else — the button that ends the
+ * argument stands beside it at the same height rather than inside it, which
+ * keeps the one thing you can press on this screen looking like a control
+ * instead of a second panel.
  */
-function Clock({ endsAt, action }: { endsAt: number; action?: React.ReactNode }) {
+function Clock({ endsAt }: { endsAt: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 500);
@@ -67,21 +66,19 @@ function Clock({ endsAt, action }: { endsAt: number; action?: React.ReactNode })
   const left = endsAt - now;
 
   return (
-    <div className={`clock${left <= 0 ? " out" : ""}${action ? " with-action" : ""}`}>
-      <span className="clock-face">
-        <span className="clock-time">{mmss(left)}</span>
-        <span className="eyebrow">{left <= 0 ? "Time's up" : "Left to argue"}</span>
-      </span>
-      {action && <span className="clock-action">{action}</span>}
+    <div className={`clock${left <= 0 ? " out" : ""}`}>
+      <span className="clock-time">{mmss(left)}</span>
+      <span className="eyebrow">{left <= 0 ? "Time's up" : "Left to argue"}</span>
     </div>
   );
 }
 
 function Argument({ view, dispatch, canControl }: Props) {
-  // the one control on this screen, wherever it ends up sitting
+  // the one control on this screen. "Point" is the word everything else on it
+  // uses — everybody points, point at somebody, who did they point at
   const call = canControl ? (
     <button className="btn btn-primary day-call" onClick={() => dispatch({ type: "OPEN_VOTE" })}>
-      Start voting
+      Start pointing
     </button>
   ) : null;
 
@@ -101,17 +98,17 @@ function Argument({ view, dispatch, canControl }: Props) {
       </p>
 
       {/*
-        One row: how long is left, and what to do about it. The clock and the
-        instruction were two boxed panels stacked in a column, which pushed the
-        roster and the notebook off the bottom of the screen between them — and
-        the host's button was a third.
+        One row: how long is left, and what to do about it. These were two
+        boxed panels stacked in a column — three, for the host — which pushed
+        the roster and the notebook off the bottom of the screen between them.
 
-        The button goes inside the clock rather than beside it. Beside it, as
-        an equal half of a two-column row, it would have read as a second
-        readout; inside it, it is the one thing in the bar you can press.
+        Even halves, matched in height. The button being gold is what stops it
+        reading as a second readout, which is the thing to watch for when a
+        control sits beside a panel the same size.
       */}
       <div className="day-status">
-        {view.dayEndsAt !== null ? <Clock endsAt={view.dayEndsAt} action={call} /> : call}
+        {view.dayEndsAt !== null && <Clock endsAt={view.dayEndsAt} />}
+        {call}
         {!canControl && <Waiting text="Keep arguing." on="The host calls the vote." />}
       </div>
     </section>

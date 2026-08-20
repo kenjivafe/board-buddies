@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { CHARACTER_INFO, CHARACTERS } from "@/lib/coup/deck";
-import { CARD_W, CARD_H } from "./Cards";
+import { CARD_W, CARD_H, artFor } from "./Cards";
 import type { Action } from "@/lib/coup/reducer";
 import type { CoupPlayer } from "@/lib/coup/types";
 
@@ -123,7 +123,7 @@ export default function Setup({
               <li className="key-row" key={c} style={{ ["--c" as string]: `var(--${c})` }}>
                 <span className="key-thumb">
                   <Image
-                    src={`/coup/${c}.png`}
+                    src={artFor(c)}
                     alt=""
                     width={CARD_W}
                     height={CARD_H}

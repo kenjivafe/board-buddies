@@ -10,6 +10,16 @@ export const CARD_W = 1054;
 export const CARD_H = 1492;
 
 /**
+ * Where a character's card art lives.
+ *
+ * The suffix is a cut of the deck rather than a variant to pick between: both
+ * sets are the same five characters at the same 1054×1492, and every frame in
+ * the app is built to that. Naming it once means changing cut is this line
+ * instead of a hunt through the components that happen to draw a card.
+ */
+export const artFor = (character: Character) => `/coup/${character}_0.png`;
+
+/**
  * The printed card. The art carries the name and the ability text, so nothing
  * is drawn over it except the odd state chip.
  */
@@ -38,7 +48,7 @@ export function CardFace({
       <span className="coup-card">
         <Image
           className="card-art"
-          src={`/coup/${character}.png`}
+          src={artFor(character)}
           alt={info.name}
           width={CARD_W}
           height={CARD_H}

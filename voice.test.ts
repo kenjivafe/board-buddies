@@ -29,6 +29,7 @@ import {
   STING_TAKE,
   briefFor,
   soundFile,
+  stingLayers,
   wakeFile,
   stingFile,
   takeOf,
@@ -551,6 +552,54 @@ for (const b of BLOCKS) {
     Math.abs(STING_SECONDS / BED_BAR_SECONDS - Math.round(STING_SECONDS / BED_BAR_SECONDS)) < 1e-9,
     "and a whole number of bars, so it ends on a bar line as well as starting on one"
   );
+
+  /*
+   * The accents laid over each figure. A music model writes music, so the
+   * fourth take holds time but stopped sounding like the role it belongs to —
+   * these put the literal coins and the literal stone back on top of it.
+   */
+  for (const step of NIGHT_ORDER) {
+    const layers = stingLayers(step);
+    check(layers.length > 0, `${step}'s figure has its own sound laid over it`);
+    for (const layer of layers) {
+      check(layer.beats.length > 0, `${step}: a layer lands on at least one beat`);
+      for (const beat of layer.beats) {
+        check(
+          Number.isInteger(beat) && beat >= 0 && beat < STING_BEATS,
+          `${step}: beat ${beat} is a whole beat inside the ${STING_BEATS}-beat figure`
+        );
+      }
+      check(
+        new Set(layer.beats).size === layer.beats.length,
+        `${step}: no beat is doubled up on itself`
+      );
+      check(layer.gain > 0 && layer.gain <= 1, `${step}: the accent has a sane level`);
+      // it must be a real take of a real sound, not a path that happens to parse
+      const known = SOUNDS.some((s) =>
+        Array.from({ length: s.variants }, (_, i) => soundFile(s.stem, i + 1)).includes(layer.file)
+      );
+      check(known, `${step}: ${layer.file} is a take listed in the manifest`);
+      const onDisk = path.join(audio, layer.file);
+      if (fs.existsSync(onDisk)) {
+        check(fs.statSync(onDisk).size > 3000, `${step}: ${layer.file} is real audio`);
+      }
+    }
+    // the accent must not be the figure it is being laid over
+    check(
+      !layers.some((l) => l.file === stingFile(step)),
+      `${step}: the accent is a different take from the figure`
+    );
+  }
+
+  // the wolf is the one that breaks the pattern, and should stay broken
+  const wolf = stingLayers("werewolf");
+  check(wolf.length === 2, "the werewolf gets a howl and a growl rather than one accent");
+  check(
+    wolf[0].beats.every((b) => b < STING_BEATS / 2) &&
+      wolf[1].beats.every((b) => b >= STING_BEATS / 2),
+    "the howl is in the first half of its figure and the growl in the second"
+  );
+  check(wolf[1].beats.length === 2, "and the growl lands twice");
   check(DUCK > 0 && DUCK < 1, "the bed ducks under the moderator rather than stopping");
   check(HOWL_GAP[0] < HOWL_GAP[1], "howls land somewhere inside a range, not on a metronome");
 

@@ -13,10 +13,11 @@ import {
   BED,
   HOWL,
   HOWL_GAP,
+  BED_BEAT_SECONDS,
   ROOSTER,
   STING_GAIN,
-  STING_SECONDS,
   stingFile,
+  stingLayers,
   takeOf,
 } from "@/lib/werewolf/ambience";
 import { NightBed } from "@/lib/werewolf/bed";
@@ -221,14 +222,20 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
       next();
       return;
     }
-    // the fetch and decode want to be over with before the moment it is due
-    if (sting) wood().warm(sting);
+    // the fetch and decode want to be over with before the moment it is due —
+    // the accents as well as the figure, since they are on beats of it
+    if (cue.sting) {
+      wood().warm(stingFile(cue.sting));
+      for (const layer of stingLayers(cue.sting)) wood().warm(layer.file);
+    }
 
     /** the sound and the name, together, optionally at an exact moment */
     const fire = (at?: number) => {
       cue.onStart?.();
       duck(true);
-      if (sting) void wood().hit(sting, STING_GAIN, at, STING_SECONDS);
+      if (sting && cue.sting) {
+        void wood().hit(sting, STING_GAIN, at, stingLayers(cue.sting), BED_BEAT_SECONDS);
+      }
       if (!src) {
         // a call with no line cut yet is still an event; give it its moment
         window.setTimeout(() => {
@@ -278,8 +285,12 @@ export function NarratorProvider({ children }: { children: React.ReactNode }) {
       if (scene === "night") {
         if (mutedRef.current) return;
         void wood().start(BED.gain);
-        // the stings want to be decoded and waiting, not fetched on the beat
-        for (const step of NIGHT_ORDER) wood().warm(stingFile(step));
+        // figures and accents both want to be decoded and waiting, not fetched
+        // on the beat they are due
+        for (const step of NIGHT_ORDER) {
+          wood().warm(stingFile(step));
+          for (const layer of stingLayers(step)) wood().warm(layer.file);
+        }
         scheduleHowl();
         return;
       }

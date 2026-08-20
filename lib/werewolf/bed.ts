@@ -7,6 +7,7 @@ import {
   DUCK,
   FADE_MS,
   takeOf,
+  type StingLayer,
 } from "./ambience";
 
 /**
@@ -73,6 +74,8 @@ export class NightBed {
   private originAt = 0;
   private ducked = false;
   private running = false;
+  /** the role figure currently ringing, and its accents, so a new call can end it */
+  private figure: { src: AudioBufferSourceNode; g: GainNode; gain: number }[] = [];
 
   /** Created on demand: a context made before a tap is born suspended. */
   private context(): AudioContext | null {
@@ -200,6 +203,7 @@ export class NightBed {
 
   /** Take it away. `ms` long, because nothing in a dark room stops abruptly. */
   stop(ms = FADE_MS) {
+    this.cutFigure();
     if (!this.running || !this.ctx) return;
     const src = this.source;
     this.fade(0, ms);
@@ -244,44 +248,92 @@ export class NightBed {
    * Falls back to an element when there is no context, so a browser that will
    * not do Web Audio still gets the sound, just not on the beat.
    */
-  async hit(url: string, gain: number, at?: number, seconds?: number) {
+  /**
+   * Play a one-shot, optionally at an exact moment and with sounds laid over it.
+   *
+   * `layers` is what makes a role's figure sound like that role: the composed
+   * two-model figure carries the rhythm, and the original sting is dropped onto
+   * named beats of it as the accent. Every piece is scheduled against the same
+   * audio clock, so they land together rather than nearly together.
+   *
+   * Whatever the last call started is stopped first. A figure runs four bars,
+   * a quick table can call the next role before that is out, and two roles'
+   * motifs playing over each other is not a chord.
+   */
+  async hit(
+    url: string,
+    gain: number,
+    at?: number,
+    layers?: readonly StingLayer[],
+    beatSeconds = 0
+  ) {
     const ctx = this.context();
     if (!ctx) {
       try {
         const el = new Audio(url);
         el.volume = gain;
         void el.play().catch(() => {});
-        if (seconds !== undefined) window.setTimeout(() => el.pause(), seconds * 1000);
       } catch {
         /* nothing to be done */
       }
       return;
     }
+
+    this.cutFigure();
     const clip = await this.clip(url);
     if (!clip) return;
+
+    // a scheduled time that has already gone by means "now" to start()
+    const when = at !== undefined && at > ctx.currentTime ? at : ctx.currentTime;
+    this.voice(clip, gain, when);
+
+    for (const layer of layers ?? []) {
+      const over = await this.clip(layer.file);
+      if (!over) continue;
+      for (const beat of layer.beats) this.voice(over, layer.gain, when + beat * beatSeconds);
+    }
+  }
+
+  /** One buffer, started at one moment, remembered so it can be cut short. */
+  private voice(clip: Clip, gain: number, when: number) {
+    const ctx = this.ctx;
+    if (!ctx) return;
     const src = ctx.createBufferSource();
     src.buffer = clip.buffer;
     const g = ctx.createGain();
     g.gain.value = gain;
     src.connect(g).connect(ctx.destination);
-    // a scheduled time that has already gone by means "now" to start()
-    const when = at !== undefined && at > ctx.currentTime ? at : ctx.currentTime;
-    // skip the quiet head, so it is the hit that lands on the line, not the file
+    // skip the quiet head, so it is the hit that lands on the beat, not the file
     src.start(when, clip.lead);
+    src.onended = () => {
+      this.figure = this.figure.filter((v) => v.src !== src);
+    };
+    this.figure.push({ src, g, gain });
+  }
 
-    /*
-     * And take only the front of it. The music endpoint will not cut anything
-     * as short as two bars, so these are four bars long and the back half is
-     * simply not played — released over a fraction of a second rather than
-     * chopped, because a buffer that stops mid-waveform is a click.
-     */
-    if (seconds !== undefined) {
-      const RELEASE = 0.28;
-      const end = when + seconds;
-      g.gain.setValueAtTime(gain, Math.max(ctx.currentTime, end - RELEASE));
-      g.gain.linearRampToValueAtTime(0, end);
-      src.stop(end + 0.02);
+  /**
+   * End whatever the last role left ringing.
+   *
+   * Faded rather than cut: a buffer that stops mid-waveform is a click, and
+   * these are stopped precisely when something else is starting, which is the
+   * worst possible moment to put one.
+   */
+  private cutFigure() {
+    const ctx = this.ctx;
+    if (!ctx || this.figure.length === 0) return;
+    const RELEASE = 0.28;
+    const end = ctx.currentTime + RELEASE;
+    for (const { src, g } of this.figure) {
+      try {
+        g.gain.cancelScheduledValues(ctx.currentTime);
+        g.gain.setValueAtTime(g.gain.value, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0, end);
+        src.stop(end + 0.02);
+      } catch {
+        /* already finished */
+      }
     }
+    this.figure = [];
   }
 
   private clip(url: string): Promise<Clip | null> {

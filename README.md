@@ -292,9 +292,13 @@ Each sting has **four takes**, and `SoundSpec.retakes` lets a later take be a di
 3. eight quarter notes across two bars, asked of the sound-effects endpoint. Nine different answers — a few landed on eighth notes, one came back with three hits and stopped after two seconds. That model makes atmospheres and has no idea what a bar is;
 4. the same brief on `/v1/music`, which is what cut the bed and which honoured its tempo to the decimal. These all run the full length with their hits on a 70 BPM subdivision.
 
-The music endpoint won't cut anything as short as two bars, so take 4 asks for **four** and plays the front half — released over a quarter-second rather than chopped, since a buffer that stops mid-waveform is a click. Two bars in and two bars out means the figure ends on a bar line as well as starting on one, and it deliberately outlasts the line: the call is about two and a half seconds, so the second bar plays under the room while whoever was called picks the phone up.
+That trade is real, and is why nothing gets deleted: a music model writes music, so the Robber's coins came back as *metallic percussion* and the Masons' stone as *a hard hit*. The thing that made the first set worth having was that you knew whose call it was before you were told, and that is the thing the fourth set lost.
 
-The trade is real, and is why nothing gets deleted: a music model writes music, so the role's own sound survives as the character of the percussion rather than as a literal growl. `STING_TAKE` picks which set plays, every set stays on disk, and going back is one line.
+So both. `stingLayers` puts take 1 back on top of take 4 — the composed figure carries the rhythm and the key, and the original sting is dropped on the **third beat of each of the four bars** as the accent: one, two, *coins*, four, four times over. The Werewolf is the deliberate exception and gets a shape rather than a pulse — a howl over the first half, then the growl twice in the second — because it is the one call the whole table is listening for.
+
+Every piece of that is scheduled against the same audio clock as the bed, so the accents land *on* the beat rather than near it, and `STING_TAKE` still picks which figure plays underneath.
+
+A figure runs the full four bars, which deliberately outlasts the call: the line is about two and a half seconds, so the role's motif plays under the room while they take their turn. A quick table can call the next role before that is out, and two roles' motifs over each other is not a chord — so a new call fades and stops whatever the last one left ringing. `DUCK` went from a third to a half at the same time: the figures are in the bed's key and on its grid, and dropping the bed that far took the floor out from under them.
 
 Re-run the script if the bed is ever recut. Nothing breaks when the numbers drift; the seam just stops landing on a bar, and it stops being worth the trouble.
 

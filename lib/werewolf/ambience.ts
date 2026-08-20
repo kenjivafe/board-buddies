@@ -194,10 +194,23 @@ const TONAL_PROMPTS: Record<NightStep, string> = {
     "A slow ticking clock and a wooden bed frame creaking over one soft low tom tuned to C# on the downbeat, with a faint dark drone in C# minor. Quiet and still, short tail. Tempo 70 BPM. No loop, no melody.",
 };
 
-/** Two bars of quarter notes at the bed's tempo — the length a sting is cut to. */
-export const STING_BEATS = 8;
+/**
+ * How long a role's figure runs: four bars at the bed's tempo.
+ *
+ * Two, at first, with the back half of the generated file thrown away. Four
+ * once the figures got their accents — the pattern is one accent a bar and it
+ * wants to come round four times, which is the whole file and is what the
+ * music endpoint was asked for anyway.
+ *
+ * It outlasts the call by a long way, on purpose: the line is about two and a
+ * half seconds and this is nearly fourteen, so the role's motif plays under
+ * the room while they take their turn. A figure still going when the next role
+ * is called is stopped by that call — see NightBed.hit.
+ */
+export const STING_BARS = 4;
 export const STING_BAR_SECONDS = BED_BAR_SECONDS;
-export const STING_SECONDS = STING_BEATS * BED_BEAT_SECONDS;
+export const STING_BEATS = STING_BARS * 4;
+export const STING_SECONDS = STING_BARS * BED_BAR_SECONDS;
 
 /**
  * Take three: a phrase, not a noise.
@@ -289,6 +302,45 @@ export const STINGS: SoundSpec[] = NIGHT_ORDER.map((step) => ({
   variants: 4,
 }));
 
+/** A sound laid over a role's figure, on named beats of it. */
+export interface StingLayer {
+  file: string;
+  /** which beats of the figure it lands on, counting the first as 0 */
+  beats: number[];
+  gain: number;
+}
+
+/** The third beat of each of the four bars: one, two, *there*, four. */
+const THIRD_OF_EACH_BAR = [2, 6, 10, 14];
+
+/**
+ * The role's own sound, put back on top of its figure.
+ *
+ * The composed figures hold time, which is what they were for, but a music
+ * model writes music — the Robber's coins came back as "metallic percussion"
+ * and the Masons' stone as "a hard hit". The thing that made the first set
+ * worth having was that you knew whose it was before you were told, and that
+ * was the thing the fourth set lost.
+ *
+ * So both. The figure carries the rhythm and the key, and take one of the same
+ * sting is dropped on the third beat of every bar as the accent — the literal
+ * coins, the literal stone. Scheduled against the same audio clock as the bed
+ * and the figure, so it lands on the beat rather than near it.
+ */
+export const stingLayers = (step: NightStep): StingLayer[] =>
+  step === "werewolf"
+    ? [
+        /*
+         * The wolf is the exception, and gets a shape rather than a pulse: a
+         * howl over the first half, and then the growl twice in the second.
+         * It is the one call the whole table is listening for, and something
+         * arriving late in it is worth more than another accent on the grid.
+         */
+        { file: soundFile(HOWL.stem, 3), beats: [0], gain: 0.5 },
+        { file: soundFile("sting_werewolf", 1), beats: [10, 14], gain: 0.6 },
+      ]
+    : [{ file: soundFile(`sting_${step}`, 1), beats: THIRD_OF_EACH_BAR, gain: 0.6 }];
+
 /**
  * Which take of the stings the night plays.
  *
@@ -324,8 +376,16 @@ export const SOUNDS: SoundSpec[] = [BED, HOWL, ROOSTER, WAKE_CUE, ...STINGS];
 export const HOWL_GAP: [number, number] = [22_000, 55_000];
 
 
-/** The bed drops to this fraction of its gain while the moderator is talking. */
-export const DUCK = 0.3;
+/**
+ * The bed drops to this fraction of its gain while the moderator is talking.
+ *
+ * It used to go to a third, from when the only thing over it was a voice.
+ * The role figures are now in its key and on its grid, so dropping the bed
+ * that far took the floor out from under them — they are meant to be a layer
+ * on the track, not a replacement for it. Half is enough to keep the line
+ * clear, and the bed comes back up for the rest of the figure anyway.
+ */
+export const DUCK = 0.5;
 /** Fade in and out, in ms. Nothing in a dark room should start abruptly. */
 export const FADE_MS = 1600;
 

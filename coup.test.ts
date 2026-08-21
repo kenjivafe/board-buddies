@@ -4,6 +4,7 @@ import { ACTIONS, isAlive, legalActions, eligibleBlockers, othersAlive } from ".
 import type { CoupState, InfluenceCard } from "./lib/coup/types";
 import { VARIANTS } from "./lib/coup/voice";
 import { known, viewFor } from "./lib/coup/view";
+import { BLOCKS, REFERENCE } from "./lib/coup/reference";
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -961,6 +962,59 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
       );
     }
   }
+}
+
+// ---------- the cheat sheet says what the reducer does ----------
+
+/*
+ * The sheet is derived from ACTIONS rather than transcribed, and this is what
+ * makes that worth doing: every rule a player can read has to be a rule the
+ * game actually enforces, in both directions.
+ */
+{
+  // every action in the game is on the sheet, once
+  const listed = REFERENCE.map((r) => r.title);
+  for (const kind of Object.keys(ACTIONS) as (keyof typeof ACTIONS)[]) {
+    check(listed.includes(ACTIONS[kind].label), `${ACTIONS[kind].label} is on the sheet`);
+  }
+  check(new Set(listed).size === listed.length, "and none of them twice");
+
+  /*
+   * Every block, from the blocking card's side. The sheet used to describe
+   * these only inside the counter line of the action they stop, so a player
+   * holding a Captain was told about Steal and nothing about the other half
+   * of the card. The Contessa was the exception, hand-written — which is
+   * exactly the kind of entry that goes stale.
+   */
+  const declared = new Set<string>();
+  for (const kind of Object.keys(ACTIONS) as (keyof typeof ACTIONS)[]) {
+    for (const who of ACTIONS[kind].blockedBy) declared.add(`${who}:${ACTIONS[kind].label}`);
+  }
+  const shown = new Set(BLOCKS.map((b) => `${b.character}:${b.stops}`));
+  for (const pair of Array.from(declared)) check(shown.has(pair), `the sheet lists that ${pair.replace(":", " blocks ")}`);
+  for (const pair of Array.from(shown)) check(declared.has(pair), `${pair.replace(":", " blocks ")} is a rule, not sheet-only`);
+  check(shown.size === declared.size, `no block is listed twice (${shown.size} of ${declared.size})`);
+
+  // every character that can block appears, and one that cannot does not
+  for (const c of ["duke", "captain", "ambassador", "contessa"] as const) {
+    check(BLOCKS.some((b) => b.character === c), `${c} is named among the blocks`);
+  }
+  check(!BLOCKS.some((b) => b.character === "assassin"), "and the Assassin, who blocks nothing, is not");
+
+  // who is allowed to claim it matches the rule the reducer applies
+  for (const b of BLOCKS) {
+    const kind = (Object.keys(ACTIONS) as (keyof typeof ACTIONS)[]).find(
+      (k) => ACTIONS[k].label === b.stops
+    )!;
+    check(
+      b.targetOnly === (ACTIONS[kind].blockableBy === "target"),
+      `${b.character} blocking ${b.stops}: the sheet agrees about who may claim it`
+    );
+  }
+  check(
+    BLOCKS.some((b) => !b.targetOnly) && BLOCKS.some((b) => b.targetOnly),
+    "and the sheet distinguishes the two, since Foreign Aid is the odd one out"
+  );
 }
 
 if (failures === 0) console.log("ALL COUP TESTS PASSED");

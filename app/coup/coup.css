@@ -876,6 +876,12 @@ button.card-slot:active .coup-card {
   color: var(--muted);
 }
 
+/* the second list needs its own heading, clear of the one above it */
+.ref-heading {
+  display: block;
+  margin-top: 18px;
+}
+
 .ref-note {
   padding: 10px;
   text-align: center;

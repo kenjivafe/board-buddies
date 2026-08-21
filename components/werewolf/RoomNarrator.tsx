@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import {
   BEAT_SECONDS,
   DAWN_HOLD_SECONDS,
+  LEAD_IN_SECONDS,
   SETTLE_SECONDS,
   callLeadMs,
 } from "@/lib/werewolf/narration";
@@ -131,8 +132,15 @@ export default function RoomNarrator({
       // hurried along
       ...(closing
         ? [{ pause: SETTLE_SECONDS * 1000 }, { line: sleepStem(closing) }]
-        : []),
-      { pause: closing ? callLeadMs(BED_BAR_SECONDS) : 0 },
+        : /*
+           * Nothing to send to bed means this is the first call of the night,
+           * and the night has to be started before anybody is called into it.
+           * A room went straight from the deal to "Werewolves, wake up" with
+           * nobody told to shut their eyes first — the one line the whole
+           * table is listening for, and only one phone was saying it.
+           */
+          [{ pause: LEAD_IN_SECONDS * 1000 }, { line: "open" }]),
+      { pause: callLeadMs(BED_BAR_SECONDS) },
       // the role's sound and its name at the same instant, dropped on the bed's
       // next bar line rather than wherever the queue happened to arrive
       { line: wakeStem(step), sting: step, bar: true },

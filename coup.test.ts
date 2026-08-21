@@ -3,6 +3,7 @@ import { initialState, reducer, type Action } from "./lib/coup/reducer";
 import { ACTIONS, isAlive, legalActions, eligibleBlockers, othersAlive } from "./lib/coup/rules";
 import type { CoupState, InfluenceCard } from "./lib/coup/types";
 import { VARIANTS } from "./lib/coup/voice";
+import { known, viewFor } from "./lib/coup/view";
 
 let failures = 0;
 function check(condition: boolean, message: string) {
@@ -875,6 +876,91 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   // a game nobody won still deals
   const nobody = reducer({ ...start("Kenji", "Miko"), winnerId: null }, { type: "RESTART" });
   check(nobody.turnIndex === 0, "with no winner on record the first seat opens");
+}
+
+// ---------- what a client is allowed to see, and when ----------
+
+/*
+ * Redaction is the whole game. An unspent influence is its owner's alone while
+ * there is still a game to lie in — and the moment there isn't, it belongs to
+ * the table, because the reveal is what everybody stayed for.
+ */
+{
+  let s = start("Ada", "Bo", "Cy");
+
+  // ---- mid-game: your own hand and nobody else's ----
+  {
+    const mine = viewFor(s, "p0");
+    const me = mine.players.find((p) => p.id === "p0")!;
+    check(
+      known(me.cards).length === 2,
+      `you can name both of your own (${known(me.cards).length})`
+    );
+    for (const other of mine.players.filter((p) => p.id !== "p0")) {
+      check(
+        other.cards.every((c) => c.character === null),
+        `${other.name}'s hand is hidden from you while the game runs`
+      );
+    }
+    check(
+      !JSON.stringify(mine).includes('"court"'),
+      "and the court's order never reaches a client at all"
+    );
+  }
+
+  // a spent card is public the moment it is spent, game or no game
+  {
+    const struck = {
+      ...s,
+      players: s.players.map((p) =>
+        p.id === "p1" ? { ...p, cards: [{ ...p.cards[0], revealed: true }, p.cards[1]] } : p
+      ),
+    };
+    const seen = viewFor(struck, "p0").players.find((p) => p.id === "p1")!;
+    check(known(seen.cards).length === 1, "a surrendered influence is face up to everyone");
+    check(seen.cards.filter((c) => c.character === null).length === 1, "the other still is not");
+  }
+
+  // ---- over: everything comes face up, to everybody ----
+  {
+    const ended: CoupState = { ...s, phase: "ended", winnerId: "p0" };
+    for (const viewer of ["p0", "p1", "p2"]) {
+      const view = viewFor(ended, viewer);
+      for (const p of view.players) {
+        check(
+          known(p.cards).length === p.cards.length,
+          `${viewer} sees all of ${p.name}'s hand once it is over`
+        );
+      }
+    }
+    /*
+     * The losers are the point. The end screen leads on what the winner was
+     * holding, and while that stayed redacted the section simply did not
+     * render for anybody who lost — the people the reveal is for.
+     */
+    const loser = viewFor(ended, "p1");
+    const winner = loser.players.find((p) => p.id === "p0")!;
+    check(
+      known(winner.cards).some((c) => !c.revealed),
+      "including the influence that won it, which is what Still Standing draws"
+    );
+    // and it is still only the players' hands — not the deck
+    check(!JSON.stringify(loser).includes('"court"'), "the court stays out of it even then");
+  }
+
+  // ---- and dealing again puts the lid back on ----
+  {
+    const again = reducer({ ...s, phase: "ended", winnerId: "p0" }, { type: "RESTART" });
+    let fresh = again;
+    while (fresh.phase === "deal") fresh = reducer(fresh, { type: "DEAL_NEXT" });
+    const mine = viewFor(fresh, "p0");
+    for (const other of mine.players.filter((p) => p.id !== "p0")) {
+      check(
+        other.cards.every((c) => c.character === null),
+        `${other.name} is hidden again once a new game starts`
+      );
+    }
+  }
 }
 
 if (failures === 0) console.log("ALL COUP TESTS PASSED");

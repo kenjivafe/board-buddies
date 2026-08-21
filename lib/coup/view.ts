@@ -67,6 +67,16 @@ export function viewFor(state: CoupState, viewerId: string | null): CoupView {
   const omniscient = viewerId === ALL_SEEING;
   const self = omniscient ? null : viewerId;
   const isActor = Boolean(state.pending && self && state.pending.actorId === self);
+  /*
+   * The game is over, so everything comes face up.
+   *
+   * There is nothing left to protect — no turn to take and no bluff to run —
+   * and the reveal is the whole payoff of a game spent lying about what you
+   * were holding. Without this the winner's last influence stayed hidden from
+   * everybody but the winner, so the losers, who are exactly the people the
+   * reveal is for, got an end screen with the winning hand missing from it.
+   */
+  const over = state.phase === "ended";
 
   return {
     phase: state.phase,
@@ -89,9 +99,10 @@ export function viewFor(state: CoupState, viewerId: string | null): CoupView {
       cards: p.cards.map((card) => ({
         id: card.id,
         revealed: card.revealed,
-        // spent cards are public; an unspent one is its owner's alone
+        // spent cards are public; an unspent one is its owner's alone until
+        // the game ends, when the whole table is entitled to it
         character:
-          card.revealed || omniscient || p.id === self ? card.character : null,
+          card.revealed || over || omniscient || p.id === self ? card.character : null,
       })),
     })),
     exchangeDraw: omniscient || isActor ? state.exchangeDraw.map(toCardView) : [],

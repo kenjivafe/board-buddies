@@ -864,6 +864,27 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
     "and the seating is left alone — only the opener moves"
   );
 
+  /*
+   * And it survives the deal. This is where the whole thing used to come
+   * undone: START picked the opener and DEAL_NEXT reset the turn to zero on
+   * its way out of the round, so seat one opened every game no matter who won
+   * the last. Checking the state straight out of RESTART missed it, because
+   * the deal had not been walked yet — and a room walks it server-side, so it
+   * was broken there too.
+   */
+  let played = rematch;
+  while (played.phase === "deal") played = reducer(played, { type: "DEAL_NEXT" });
+  check(played.phase === "turn", `the deal finishes (${played.phase})`);
+  check(played.turnIndex === 2, `Ana still opens once the cards are out, saw seat ${played.turnIndex}`);
+  const opens = played.log.filter((c) => c.text.includes("opens"));
+  check(
+    opens.length > 0 && opens[opens.length - 1].text.startsWith("Ana"),
+    `and it is Ana who is announced (${opens.map((c) => c.text).join(" | ")})`
+  );
+  // the first legal action is hers, not the first seat's
+  const hers = reducer(played, { type: "ACT", action: "income" });
+  check(hers.players[2].coins === 3, `Ana takes the first turn (${hers.players.map((p) => p.coins).join("/")})`);
+
   // head to head, the coin handicap follows the opener rather than seat one
   let duel = start("Kenji", "Miko");
   duel = { ...duel, phase: "ended", winnerId: "p1" };
@@ -875,8 +896,21 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   );
 
   // a game nobody won still deals
-  const nobody = reducer({ ...start("Kenji", "Miko"), winnerId: null }, { type: "RESTART" });
+  let nobody = reducer({ ...start("Kenji", "Miko"), winnerId: null }, { type: "RESTART" });
   check(nobody.turnIndex === 0, "with no winner on record the first seat opens");
+  while (nobody.phase === "deal") nobody = reducer(nobody, { type: "DEAL_NEXT" });
+  check(nobody.turnIndex === 0, "and still does after the deal");
+
+  // three games running: the table keeps moving rather than settling on a seat
+  let table = start("Kenji", "Miko", "Ana");
+  const openers: number[] = [table.turnIndex];
+  for (const winner of ["p1", "p2", "p0"]) {
+    let next = reducer({ ...table, phase: "ended", winnerId: winner }, { type: "RESTART" });
+    while (next.phase === "deal") next = reducer(next, { type: "DEAL_NEXT" });
+    openers.push(next.turnIndex);
+    table = next;
+  }
+  check(openers.join() === "0,1,2,0", `each winner opens the next game (${openers.join()})`);
 }
 
 // ---------- what a client is allowed to see, and when ----------
@@ -1015,6 +1049,86 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
     BLOCKS.some((b) => !b.targetOnly) && BLOCKS.some((b) => b.targetOnly),
     "and the sheet distinguishes the two, since Foreign Aid is the odd one out"
   );
+}
+
+// ---------- proving a claim really does change the card ----------
+
+/*
+ * A player who proves a challenge puts the card back, the deck is shuffled,
+ * and they draw a fresh one. It looks to a table as though nothing happened,
+ * because the replacement arrives face down and — often enough to be noticed —
+ * is the same character all over again. That is the rules working, not
+ * failing: there are three of each character in fifteen cards, so the copy you
+ * just returned is one of several in the pool.
+ *
+ * Which is exactly why it is worth measuring rather than eyeballing. A swap
+ * that quietly did nothing would look identical at the table.
+ */
+{
+  /** Seat 0 holds a Duke, claims Tax, is challenged, and proves it. */
+  const proveOnce = (names: string[]) => {
+    let s = start(...names);
+    const seat = s.players[0];
+    const duke = { ...seat.cards[0], character: "duke" as const };
+    s = {
+      ...s,
+      players: s.players.map((p, i) => (i === 0 ? { ...p, cards: [duke, p.cards[1]] } : p)),
+    };
+
+    s = reducer(s, { type: "ACT", action: "tax" });
+    s = reducer(s, { type: "CHALLENGE", challengerId: "p1" });
+    const before = s.players[0].cards[0];
+    const courtBefore = s.court.length;
+    s = reducer(s, { type: "REVEAL" });
+    const after = s.players[0].cards[0];
+    return { before, after, courtBefore, courtAfter: s.court.length, state: s };
+  };
+
+  for (const names of [["Kenji", "Miko", "Ana"], ["Kenji", "Miko", "Ana", "Bo", "Cy", "Dee"]]) {
+    const RUNS = 1500;
+    let sameCard = 0;
+    let sameCharacter = 0;
+    let poolSize = 0;
+    let faceUp = 0;
+    let courtGrew = 0;
+
+    for (let i = 0; i < RUNS; i++) {
+      const r = proveOnce(names);
+      poolSize = r.courtBefore + 1;
+      if (r.after.id === r.before.id) sameCard++;
+      if (r.after.character === "duke") sameCharacter++;
+      // a card drawn from the deck is nobody's business but its owner's
+      if (r.after.revealed) faceUp++;
+      if (r.courtAfter !== r.courtBefore) courtGrew++;
+      if (i === 0) checkConservation(r.state, `${names.length}-hand proven swap`);
+    }
+
+    const at = `${names.length} players`;
+    check(faceUp === 0, `${at}: the replacement always comes face down (${faceUp} did not)`);
+    check(courtGrew === 0, `${at}: the deck neither grows nor shrinks (${courtGrew} did)`);
+
+    /*
+     * A fair draw from a pool of N returns the same card 1/N of the time. Both
+     * failures this pins down are silent: a swap that never happened would sit
+     * at 100%, and one that deliberately avoided the card it just returned —
+     * which is not the rule — would sit at 0.
+     */
+    const same = sameCard / RUNS;
+    const fair = 1 / poolSize;
+    check(
+      Math.abs(same - fair) < 0.06,
+      `${at}: the draw is fair — same card ${(same * 100).toFixed(1)}%, a pool of ${poolSize} predicts ${(fair * 100).toFixed(1)}%`
+    );
+    check(same > 0, `${at}: and it can return the card it just put back, as the rules allow`);
+    check(
+      sameCharacter > sameCard,
+      `${at}: the same character comes back more often than the same card, since there are three of each (${sameCharacter} vs ${sameCard})`
+    );
+    check(
+      sameCharacter < RUNS * 0.6,
+      `${at}: but it is the minority — ${((sameCharacter / RUNS) * 100).toFixed(1)}% look unchanged to the table`
+    );
+  }
 }
 
 if (failures === 0) console.log("ALL COUP TESTS PASSED");

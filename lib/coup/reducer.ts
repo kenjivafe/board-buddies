@@ -434,9 +434,16 @@ export function reducer(state: CoupState, action: Action): CoupState {
       const d = draft(state);
       if (d.dealIndex + 1 >= d.players.length) {
         d.dealIndex = 0;
-        d.turnIndex = 0;
+        /*
+         * The opener was chosen at START — the winner of the last game, so the
+         * table rotates instead of the first seat taking every opening turn.
+         * This used to reset the turn to zero on its way out of the deal and
+         * announce seat one by name, which undid the whole thing: it did not
+         * matter what START decided, the deal walked over it. Rooms too, where
+         * the adapter walks this round through server-side.
+         */
         d.phase = "turn";
-        say(d, `${d.players[0].name} opens.`, "turn");
+        say(d, `${d.players[d.turnIndex].name} opens.`, "turn");
       } else {
         d.dealIndex += 1;
       }

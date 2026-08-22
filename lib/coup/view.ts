@@ -115,6 +115,27 @@ export interface KnownCard {
   character: Character;
 }
 
+/**
+ * The card somebody has just drawn to replace one they proved, while the story
+ * of that action is still on the table.
+ *
+ * Proving a claim swaps a card, and the swap is genuinely invisible to the
+ * person it happens to: it goes back face down and comes back face down, and
+ * with three of each character in fifteen cards the same face returns about a
+ * quarter of the time. Their own hand looked untouched, so they carried on
+ * believing they held the card they had just given away.
+ *
+ * Card ids are unique, so matching one against a hand is enough to scope this
+ * to its owner — there is no need to go by name.
+ */
+export function justDrawnId(beats: Beat[]): string | null {
+  for (let i = beats.length - 1; i >= 0; i--) {
+    const b = beats[i];
+    if (b.kind === "proven" && b.replacedId) return b.replacedId;
+  }
+  return null;
+}
+
 /** Narrows to the cards this viewer can actually name. */
 export function known(cards: CardView[]): KnownCard[] {
   return cards.filter((c): c is KnownCard => c.character !== null);

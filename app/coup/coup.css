@@ -1288,7 +1288,8 @@ button.card-slot:active .coup-card {
   /* the swap still has to end where it ends — the card gone, the new one
      there — so this lands on the last frame rather than removing it */
   .beat-swap .going,
-  .beat-swap .coming {
+  .beat-swap .coming,
+  .my-card.drawn {
     animation-duration: 1ms;
   }
 }

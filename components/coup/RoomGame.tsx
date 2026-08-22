@@ -2,7 +2,7 @@
 
 import type { Action } from "@/lib/coup/reducer";
 import type { CoupView } from "@/lib/coup/view";
-import { known } from "@/lib/coup/view";
+import { justDrawnId, known } from "@/lib/coup/view";
 import RoomShell from "@/components/room/RoomShell";
 import { CardFace } from "./Cards";
 import End from "./End";
@@ -53,18 +53,35 @@ function MyHand({ view }: { view: CoupView }) {
   const cards = known(me.cards);
   if (cards.length === 0) return null;
 
+  /*
+   * Prove a claim and the card is swapped for a fresh one — and you, of all
+   * people, cannot tell. It goes back face down and comes back face down, and
+   * a quarter of the time the same character returns, so the hand at the
+   * bottom of your own screen looked untouched and you carried on believing
+   * you held the card you had just handed back.
+   *
+   * Keyed on whether it is the new one, so the arrival replays even when the
+   * face that came back is the same face that left.
+   */
+  const drawn = justDrawnId(view.beats);
+
   return (
     <section className="my-hand" aria-label="Your influences">
       <span className="eyebrow">Your hand · keep it to yourself</span>
       <div className="choose-cards">
         {cards.map((card) => (
-          <CardFace
-            key={card.id}
-            character={card.character}
-            spent={card.revealed}
-            caption
-            sizes="(max-width: 520px) 34vw, 150px"
-          />
+          <span
+            className={`my-card${card.id === drawn ? " drawn" : ""}`}
+            key={`${card.id}-${card.id === drawn ? "new" : "held"}`}
+          >
+            <CardFace
+              character={card.character}
+              spent={card.revealed}
+              label={card.id === drawn ? "Just drawn" : undefined}
+              caption
+              sizes="(max-width: 520px) 34vw, 150px"
+            />
+          </span>
         ))}
       </div>
     </section>

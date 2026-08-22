@@ -112,10 +112,44 @@ function name(d: CoupState, id: string | null): string {
 
 // ---------- flow ----------
 
+/**
+ * A claim proved on the action that ends the game is handed back.
+ *
+ * Proving swaps the card for a fresh one, which is right while there is a game
+ * left to play it in. On the last action there is not: nothing is ever done
+ * with the replacement, and it leaves the winner holding a card they never
+ * used while the card that actually won it has vanished into the deck. Every
+ * end screen then had to either lie about the hand or contradict itself.
+ *
+ * Swapped back rather than un-drawn, so the deck keeps its fifteen cards and
+ * every id stays unique. Which card of that character comes back does not
+ * matter — the game is over and no character is ever played again.
+ */
+function returnFinalDraw(d: CoupState) {
+  const proven = [...d.beats]
+    .reverse()
+    .find((b) => b.kind === "proven" && b.replacedId !== null && b.character !== null);
+  if (!proven?.replacedId || !proven.character) return;
+
+  const holder = d.players.find((p) => p.cards.some((c) => c.id === proven.replacedId));
+  if (!holder) return;
+  const slot = holder.cards.findIndex((c) => c.id === proven.replacedId);
+  // if they have since had to surrender it, it is spent and stays spent
+  if (slot < 0 || holder.cards[slot].revealed) return;
+
+  const back = d.court.findIndex((c) => c.character === proven.character);
+  if (back < 0) return;
+
+  const drawn = holder.cards[slot];
+  holder.cards[slot] = d.court[back];
+  d.court = d.court.map((c, i) => (i === back ? drawn : c));
+}
+
 /** Ends the game the moment only one influence-holder is left standing. */
 function checkWin(d: CoupState): boolean {
   const alive = d.players.filter(isAlive);
   if (alive.length > 1) return false;
+  returnFinalDraw(d);
   d.phase = "ended";
   d.winnerId = alive[0]?.id ?? null;
   d.pending = null;

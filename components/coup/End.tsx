@@ -17,10 +17,12 @@ export default function End({
   const winner = state.players.find((p) => p.id === state.winnerId);
   const survived = known(winner?.cards ?? []).filter((c) => !c.revealed);
   /*
-   * A claim proven in the winning action is swapped back into the court for a
-   * fresh card, so the hand at the end is not the card that won it. The game
-   * is over and nothing hangs on it, so show what was proven where the
-   * replacement sits — labelled, not passed off as still held.
+   * What won it, for the line underneath. The card itself needs no special
+   * handling any more: a claim proved on the winning action is handed back
+   * rather than swapped for a card nobody will ever play, so the hand here is
+   * simply the hand. This used to draw the proven character over the top of
+   * the replacement, which made this section disagree with the standings
+   * below it about what the winner was holding.
    */
   const proved = [...state.beats].reverse().find(
     (b): b is typeof b & { character: NonNullable<typeof b.character> } =>
@@ -50,27 +52,17 @@ export default function End({
 
       {survived.length > 0 && (
         <section aria-label={`What ${winner?.name} is holding`}>
-          {/* Not "what they had all along" — a proven claim goes back to the
-              court and draws a replacement, so this is only the final hand. */}
           <span className="eyebrow">Still standing · {winner?.name}</span>
           <div className="choose-cards" style={{ marginTop: 10 }}>
-            {survived.map((card) =>
-              proved && proved.replacedId === card.id ? (
-                <CardFace
-                  key={card.id}
-                  character={proved.character}
-                  label="Proved"
-                  caption
-                />
-              ) : (
-                <CardFace key={card.id} character={card.character} />
-              )
-            )}
+            {survived.map((card) => (
+              // every card named, not just one of them — a named card beside an
+              // unnamed one read as though only the named one mattered
+              <CardFace key={card.id} character={card.character} caption />
+            ))}
           </div>
           {proved && (
             <p className="hint" style={{ marginTop: 8 }}>
-              Won it proving the {CHARACTER_INFO[proved.character].name}, which went back to the
-              court for a fresh card.
+              Won it proving the {CHARACTER_INFO[proved.character].name}.
             </p>
           )}
         </section>

@@ -1131,6 +1131,86 @@ function setHand(s: CoupState, playerId: string, ...characters: InfluenceCard["c
   }
 }
 
+// ---------- the last proof is handed back, not swapped ----------
+
+/*
+ * Proving a claim swaps the card, which is right while there is a game left to
+ * play it in. On the action that ends the game there is not: nothing is ever
+ * done with the replacement, and the winner is left holding a card they never
+ * used while the one that actually won it has gone into the deck.
+ */
+{
+  /** Bo has one influence left, challenges Ada's Duke, and is wrong. */
+  const endOnAProof = () => {
+    let s = start("Ada", "Bo");
+    const duke = { ...s.players[0].cards[0], character: "duke" as const };
+    s = {
+      ...s,
+      players: s.players.map((p, i) =>
+        i === 0
+          ? { ...p, cards: [duke, p.cards[1]] }
+          : { ...p, cards: [{ ...p.cards[0], revealed: true }, p.cards[1]] }
+      ),
+    };
+    s = reducer(s, { type: "ACT", action: "tax" });
+    s = reducer(s, { type: "CHALLENGE", challengerId: "p1" });
+    s = reducer(s, { type: "REVEAL" });
+    // Bo has to give up the last one, which ends it
+    if (s.phase === "reveal" && s.reveal) {
+      const mine = s.players[1].cards.find((c) => !c.revealed)!;
+      s = reducer(s, { type: "LOSE", cardId: mine.id });
+    }
+    return s;
+  };
+
+  let held = 0;
+  const RUNS = 400;
+  for (let i = 0; i < RUNS; i++) {
+    const s = endOnAProof();
+    if (i === 0) {
+      check(s.phase === "ended", `the proof ends the game (${s.phase})`);
+      check(s.winnerId === "p0", `and Ada takes it (${s.winnerId})`);
+    }
+    if (s.phase !== "ended") continue;
+    const live = s.players[0].cards.filter((c) => !c.revealed);
+    if (live.some((c) => c.character === "duke")) held++;
+    checkConservation(s, "won on a proof");
+  }
+  check(
+    held === RUNS,
+    `the winner keeps the card that won it, every time (${held} of ${RUNS})`
+  );
+
+  /*
+   * And only then. A proof mid-game still swaps — that is the rule, and the
+   * whole reason a player cannot bank on what somebody proved an hour ago.
+   */
+  let midGame = start("Ada", "Bo", "Cy");
+  const duke = { ...midGame.players[0].cards[0], character: "duke" as const };
+  midGame = {
+    ...midGame,
+    players: midGame.players.map((p, i) => (i === 0 ? { ...p, cards: [duke, p.cards[1]] } : p)),
+  };
+  midGame = reducer(midGame, { type: "ACT", action: "tax" });
+  midGame = reducer(midGame, { type: "CHALLENGE", challengerId: "p1" });
+  const beforeId = midGame.players[0].cards[0].id;
+  midGame = reducer(midGame, { type: "REVEAL" });
+  check(midGame.phase !== "ended", "the table is still standing");
+  let changed = 0;
+  for (let i = 0; i < 200; i++) {
+    let s = start("Ada", "Bo", "Cy");
+    const d = { ...s.players[0].cards[0], character: "duke" as const };
+    s = { ...s, players: s.players.map((p, j) => (j === 0 ? { ...p, cards: [d, p.cards[1]] } : p)) };
+    s = reducer(s, { type: "ACT", action: "tax" });
+    s = reducer(s, { type: "CHALLENGE", challengerId: "p1" });
+    const was = s.players[0].cards[0].id;
+    s = reducer(s, { type: "REVEAL" });
+    if (s.players[0].cards[0].id !== was) changed++;
+  }
+  check(changed > 150, `a proof mid-game still draws a fresh card (${changed} of 200)`);
+  void beforeId;
+}
+
 if (failures === 0) console.log("ALL COUP TESTS PASSED");
 else {
   console.error(`${failures} check(s) failed`);

@@ -744,6 +744,57 @@ button.card-slot:active .coup-card {
   max-width: none;
 }
 
+/* The proven card going back, and a fresh one arriving.
+   
+   Both live in the same slot, one on top of the other: the face leaves
+   towards the deck and the back settles in behind it, so the hand visibly
+   changes. Told rather than shown, this was the least believed rule in the
+   game — the swap is face down at both ends, and a quarter of the time the
+   same character comes back, which reads as nothing having happened. */
+.beat-swap {
+  position: relative;
+  display: block;
+}
+
+.beat-swap .going {
+  display: block;
+  animation: card-returns 1.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* stacked on the one leaving, so the slot never changes size under them */
+.beat-swap .coming {
+  display: block;
+  position: absolute;
+  inset: 0;
+  animation: card-drawn 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* up and away, towards the deck */
+@keyframes card-returns {
+  0%,
+  38% {
+    transform: none;
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-26px) rotate(-9deg) scale(0.82);
+    opacity: 0;
+  }
+}
+
+/* and the replacement, arriving a beat behind it */
+@keyframes card-drawn {
+  0%,
+  46% {
+    transform: translateY(18px) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 .beat-fate {
   font-family: var(--display);
   font-size: 8px;
@@ -1232,5 +1283,12 @@ button.card-slot:active .coup-card {
   .roster-row,
   .flip .back-layer {
     transition: none;
+  }
+
+  /* the swap still has to end where it ends — the card gone, the new one
+     there — so this lands on the last frame rather than removing it */
+  .beat-swap .going,
+  .beat-swap .coming {
+    animation-duration: 1ms;
   }
 }
